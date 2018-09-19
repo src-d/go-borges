@@ -1,6 +1,10 @@
 package borges
 
-import "gopkg.in/src-d/go-git.v4"
+import (
+	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/storage"
+)
 
 type Library interface {
 	Location
@@ -17,7 +21,7 @@ type Location interface {
 	Has(id RepositoryID) (bool, error)
 	Get(id RepositoryID, mode Mode) (*Repository, error)
 
-	//Repositories() (RepositoryIter, error)
+	Repositories() (RepositoryIterator, error)
 }
 
 type RepositoryID string
@@ -26,7 +30,26 @@ func (id RepositoryID) String() string {
 	return string(id)
 }
 
+func OpenRepository(id RepositoryID, s storage.Storer, worktree billy.Filesystem) (*Repository, error) {
+	r, err := git.Open(s, worktree)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Repository{id, r}, nil
+}
+
+func InitRepository(id RepositoryID, s storage.Storer, worktree billy.Filesystem) (*Repository, error) {
+	r, err := git.Init(s, worktree)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Repository{id, r}, nil
+}
+
 type Repository struct {
+	ID RepositoryID
 	*git.Repository
 
 	//    Rollback() error

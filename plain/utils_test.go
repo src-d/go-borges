@@ -13,18 +13,15 @@ func TestIsRepository(t *testing.T) {
 
 	fs := memfs.New()
 
-	is, bare, err := IsRepository(fs, "foo")
+	is, err := IsRepository(fs, "foo", false)
 	require.NoError(err)
 	require.False(is)
-	require.False(bare)
 
 	createValidDotGit(require, fs, "foo/.git")
 
-	is, bare, err = IsRepository(fs, "foo")
+	is, err = IsRepository(fs, "foo", false)
 	require.NoError(err)
 	require.True(is)
-	require.False(bare)
-
 }
 
 func TestIsRepository_Bare(t *testing.T) {
@@ -32,17 +29,15 @@ func TestIsRepository_Bare(t *testing.T) {
 
 	fs := memfs.New()
 
-	is, bare, err := IsRepository(fs, "foo")
+	is, err := IsRepository(fs, "foo", true)
 	require.NoError(err)
 	require.False(is)
-	require.False(bare)
 
 	createValidDotGit(require, fs, "foo")
 
-	is, bare, err = IsRepository(fs, "foo")
+	is, err = IsRepository(fs, "foo", true)
 	require.NoError(err)
 	require.True(is)
-	require.True(bare)
 }
 
 func createValidDotGit(require *require.Assertions, fs billy.Filesystem, path string) {

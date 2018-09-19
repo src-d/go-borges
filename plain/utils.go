@@ -8,25 +8,17 @@ import (
 
 var requiredGitPaths = []string{"HEAD", "objects", "refs/heads"}
 
-// IsRepository return true if the given path in the given folder contains a
-// valid repository, isBare is true when the given path contains a bare
-// repository.
+// IsRepository return true if the given path in the given filesystem contains a
+// valid repository.
 //
 // The identifciation method is based on the stat of 3 different files/folder,
 // cgit, makes a extra validation in the content on the HEAD file.
-func IsRepository(fs billy.Filesystem, path string) (isRepository, isBare bool, err error) {
-	isRepository, err = isDotGitRepository(fs, path)
-	if err != nil {
-		return
+func IsRepository(fs billy.Filesystem, path string, isBare bool) (bool, error) {
+	if !isBare {
+		path = fs.Join(path, ".git")
 	}
 
-	if isRepository {
-		isBare = true
-		return
-	}
-
-	isRepository, err = isDotGitRepository(fs, fs.Join(path, ".git"))
-	return
+	return isDotGitRepository(fs, path)
 }
 
 func isDotGitRepository(fs billy.Filesystem, path string) (bool, error) {

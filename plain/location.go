@@ -1,7 +1,6 @@
 package plain
 
 import (
-	"fmt"
 	"io"
 	"os"
 
@@ -9,7 +8,6 @@ import (
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
@@ -23,17 +21,18 @@ var (
 
 // Library controls the persistence of multiple git repositories.
 type Location struct {
-	fs billy.Filesystem
+	fs   billy.Filesystem
+	bare bool
 }
 
 // NewLibrary creates a new Library based on the given filesystem.
-func NewLocation(fs billy.Filesystem) *Location {
-	return &Location{fs: fs}
+func NewLocation(fs billy.Filesystem, bare bool) *Location {
+	return &Location{fs: fs, bare: bare}
 }
 
 // GetOrInit get the requested repository based on the given URL, or inits a
 // new repository.
-func (l *Location) GetOrInit(id borges.RepositoryID) (*git.Repository, error) {
+func (l *Location) GetOrInit(id borges.RepositoryID) (*borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -47,7 +46,7 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (*git.Repository, error) {
 }
 
 // Init inits a new repository for the given URL.
-func (l *Location) Init(id borges.RepositoryID) (*git.Repository, error) {
+func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -62,7 +61,7 @@ func (l *Location) Init(id borges.RepositoryID) (*git.Repository, error) {
 		return nil, err
 	}
 
-	r, err := git.Init(s, nil)
+	r, err := borges.InitRepository(id, s, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 }
 
 // Get get the requested repository based on the given URL.
-func (l *Location) Get(id borges.RepositoryID) (*git.Repository, error) {
+func (l *Location) Get(id borges.RepositoryID) (*borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -104,12 +103,17 @@ func (l *Location) Get(id borges.RepositoryID) (*git.Repository, error) {
 		return nil, ErrRepositoryNotExists.New(id)
 	}
 
+	return l.doGet(id)
+}
+
+// doGet, is the basic operation of open a repository without any checking.
+func (l *Location) doGet(id borges.RepositoryID) (*borges.Repository, error) {
 	s, err := l.repositoryStorer(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return git.Open(s, nil)
+	return borges.OpenRepository(id, s, nil)
 }
 
 func (l *Location) repositoryStorer(id borges.RepositoryID) (
@@ -123,7 +127,15 @@ func (l *Location) repositoryStorer(id borges.RepositoryID) (
 }
 
 func (l *Location) repositoryPath(id borges.RepositoryID) string {
-	return id.String()
+	if l.bare {
+		return id.String()
+	}
+
+	return l.fs.Join(id.String(), ".git")
+}
+
+func (l *Location) Repositories() (borges.RepositoryIterator, error) {
+	return NewLocationIterator(l)
 }
 
 type dir struct {
@@ -132,17 +144,17 @@ type dir struct {
 }
 
 type LocationIterator struct {
-	fs    billy.Filesystem
+	l     *Location
 	queue []*dir
 }
 
-func NewLocationIterator(fs billy.Filesystem) (*LocationIterator, error) {
-	iter := &LocationIterator{fs: fs}
+func NewLocationIterator(l *Location) (*LocationIterator, error) {
+	iter := &LocationIterator{l: l}
 	return iter, iter.addDir("")
 }
 
 func (iter *LocationIterator) addDir(path string) error {
-	entries, err := iter.fs.ReadDir(path)
+	entries, err := iter.l.fs.ReadDir(path)
 	if err != nil {
 		return err
 	}
@@ -155,13 +167,11 @@ func (iter *LocationIterator) addDir(path string) error {
 	return nil
 }
 
-func (iter *LocationIterator) nextRepositoryPath() (path string, isBare bool, err error) {
+func (iter *LocationIterator) nextRepositoryPath() (string, error) {
 	var fi os.FileInfo
-	var is bool
 	for {
 		if len(iter.queue) == 0 {
-			err = io.EOF
-			return
+			return "", io.EOF
 		}
 
 		dir := iter.queue[0]
@@ -174,41 +184,40 @@ func (iter *LocationIterator) nextRepositoryPath() (path string, isBare bool, er
 			continue
 		}
 
-		path = iter.fs.Join(dir.path, fi.Name())
-		is, isBare, err = IsRepository(iter.fs, path)
+		path := iter.l.fs.Join(dir.path, fi.Name())
+		is, err := IsRepository(iter.l.fs, path, iter.l.bare)
 		if err != nil {
-			return
+			return path, err
 		}
 
 		if is {
-			return
+			return path, nil
 		}
 
 		if err = iter.addDir(path); err != nil {
-			return
+			return path, err
 		}
 
 		continue
 	}
 }
 
-func (iter *LocationIterator) Next() (borges.RepositoryID, *borges.Repository, error) {
-	path, isBare, err := iter.nextRepositoryPath()
+func (iter *LocationIterator) Next() (*borges.Repository, error) {
+	path, err := iter.nextRepositoryPath()
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	id := borges.RepositoryID(path)
 	if err != nil {
-		return id, nil, err
+		return nil, err
 	}
 
-	fmt.Println(isBare)
-	return id, nil, err
+	return iter.l.doGet(id)
 
 }
 
-func (iter *LocationIterator) ForEach(cb func(borges.RepositoryID, *borges.Repository) error) error {
+func (iter *LocationIterator) ForEach(cb func(*borges.Repository) error) error {
 	return borges.ForEachIterator(iter, cb)
 }
 
