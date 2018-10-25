@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/util"
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-errors.v1"
@@ -31,7 +32,7 @@ func NewLocation(fs billy.Filesystem, bare bool) *Location {
 }
 
 // GetOrInit get the requested repository based on the given URL, or inits a
-// new repository.
+// new repository. If the repository is opened this will be done in RWMode.
 func (l *Location) GetOrInit(id borges.RepositoryID) (*borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
@@ -39,7 +40,7 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (*borges.Repository, error)
 	}
 
 	if has {
-		return l.Get(id)
+		return l.Get(id, borges.RWMode)
 	}
 
 	return l.Init(id)
@@ -93,7 +94,7 @@ func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 }
 
 // Get get the requested repository based on the given URL.
-func (l *Location) Get(id borges.RepositoryID) (*borges.Repository, error) {
+func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (*borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -103,14 +104,18 @@ func (l *Location) Get(id borges.RepositoryID) (*borges.Repository, error) {
 		return nil, ErrRepositoryNotExists.New(id)
 	}
 
-	return l.doGet(id)
+	return l.doGet(id, mode)
 }
 
 // doGet, is the basic operation of open a repository without any checking.
-func (l *Location) doGet(id borges.RepositoryID) (*borges.Repository, error) {
+func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*borges.Repository, error) {
 	s, err := l.repositoryStorer(id)
 	if err != nil {
 		return nil, err
+	}
+
+	if mode == borges.ReadOnlyMode {
+		s = &util.ReadOnlyStorer{s}
 	}
 
 	return borges.OpenRepository(id, s, nil)
@@ -134,8 +139,8 @@ func (l *Location) repositoryPath(id borges.RepositoryID) string {
 	return l.fs.Join(id.String(), ".git")
 }
 
-func (l *Location) Repositories() (borges.RepositoryIterator, error) {
-	return NewLocationIterator(l)
+func (l *Location) Repositories(m borges.Mode) (borges.RepositoryIterator, error) {
+	return NewLocationIterator(l, m)
 }
 
 type dir struct {
@@ -145,11 +150,12 @@ type dir struct {
 
 type LocationIterator struct {
 	l     *Location
+	m     borges.Mode
 	queue []*dir
 }
 
-func NewLocationIterator(l *Location) (*LocationIterator, error) {
-	iter := &LocationIterator{l: l}
+func NewLocationIterator(l *Location, m borges.Mode) (*LocationIterator, error) {
+	iter := &LocationIterator{l: l, m: m}
 	return iter, iter.addDir("")
 }
 
@@ -213,7 +219,7 @@ func (iter *LocationIterator) Next() (*borges.Repository, error) {
 		return nil, err
 	}
 
-	return iter.l.doGet(id)
+	return iter.l.doGet(id, iter.m)
 
 }
 

@@ -1,8 +1,12 @@
 package borges
 
 import (
-	billy "gopkg.in/src-d/go-billy.v4"
+	"path"
+	"strings"
+
+	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	"gopkg.in/src-d/go-git.v4/storage"
 )
 
@@ -13,18 +17,38 @@ type Library interface {
 }
 
 type Mode int
+
+const (
+	RWMode Mode = iota
+	ReadOnlyMode
+)
+
 type LocationID string
 
 type Location interface {
-	GetOrInit(id RepositoryID, mode Mode) (*Repository, error)
-	Init(id RepositoryID, mode Mode) (*Repository, error)
-	Has(id RepositoryID) (bool, error)
-	Get(id RepositoryID, mode Mode) (*Repository, error)
-
-	Repositories() (RepositoryIterator, error)
+	GetOrInit(RepositoryID) (*Repository, error)
+	Init(RepositoryID) (*Repository, error)
+	Has(RepositoryID) (bool, error)
+	Get(RepositoryID, Mode) (*Repository, error)
+	Repositories(Mode) (RepositoryIterator, error)
 }
 
 type RepositoryID string
+
+// NewRepositoryID returns a new RepositoryID based on a given endpoint.
+// Eg.: git@github.com:src-d/go-borges becomes github.com/src-d/go-borges.git
+func NewRepositoryID(endpoint string) (RepositoryID, error) {
+	e, err := transport.NewEndpoint(endpoint)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.HasSuffix(e.Path, ".git") {
+		e.Path += ".git"
+	}
+
+	return RepositoryID(path.Join(e.Host, e.Path)), nil
+}
 
 func (id RepositoryID) String() string {
 	return string(id)
