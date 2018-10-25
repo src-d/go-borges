@@ -18,7 +18,7 @@ func TestLocation(t *testing.T) {
 	require.NoError(err)
 
 	var location borges.Location
-	location = NewLocation(memfs.New(), false)
+	location = NewLocation("foo", memfs.New(), false)
 	r, err := location.Init(id)
 	require.NoError(err)
 	require.NotNil(r)
@@ -41,7 +41,7 @@ func TestLocation(t *testing.T) {
 func TestLocation_Has(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), false)
+	location := NewLocation("foo", memfs.New(), false)
 	has, err := location.Has("http://github.com/foo/bar")
 	require.NoError(err)
 	require.False(has)
@@ -50,7 +50,7 @@ func TestLocation_Has(t *testing.T) {
 func TestLocation_Init(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), false)
+	location := NewLocation("foo", memfs.New(), false)
 
 	r, err := location.Init("http://github.com/foo/bar")
 	require.NoError(err)
@@ -68,21 +68,21 @@ func TestLocation_Init(t *testing.T) {
 func TestLocation_InitExists(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), false)
+	location := NewLocation("foo", memfs.New(), false)
 
 	r, err := location.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
 	r, err = location.Init("http://github.com/foo/bar")
-	require.True(ErrRepositoryExists.Is(err))
+	require.True(borges.ErrRepositoryExists.Is(err))
 	require.Nil(r)
 }
 
 func TestLocation_Get(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), false)
+	location := NewLocation("foo", memfs.New(), false)
 
 	_, err := location.Init("http://github.com/foo/bar")
 	require.NoError(err)
@@ -90,12 +90,23 @@ func TestLocation_Get(t *testing.T) {
 	r, err := location.Get("http://github.com/foo/bar", borges.RWMode)
 	require.NoError(err)
 	require.NotNil(r)
+
+	require.Equal(borges.MustLocationID("foo"), r.LocationID)
+}
+
+func TestLocation_Get_NotFound(t *testing.T) {
+	require := require.New(t)
+
+	location := NewLocation("foo", memfs.New(), false)
+	r, err := location.Get("http://github.com/foo/qux", borges.RWMode)
+	require.True(borges.ErrRepositoryNotExists.Is(err))
+	require.Nil(r)
 }
 
 func TestLocation_Get_ReadOnlyMode(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), false)
+	location := NewLocation("foo", memfs.New(), false)
 
 	_, err := location.Init("http://github.com/foo/bar")
 	require.NoError(err)
@@ -111,7 +122,7 @@ func TestLocation_Get_ReadOnlyMode(t *testing.T) {
 func TestLocation_GetOrInit(t *testing.T) {
 	require := require.New(t)
 
-	location := NewLocation(memfs.New(), true)
+	location := NewLocation("foo", memfs.New(), true)
 
 	r, err := location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
@@ -129,7 +140,7 @@ func TestLocationIterator_Next(t *testing.T) {
 	createValidDotGit(require, fs, "foo/.git")
 	fs.MkdirAll("qux", 0755)
 
-	iter, err := NewLocationIterator(NewLocation(fs, false), borges.RWMode)
+	iter, err := NewLocationIterator(NewLocation("foo", fs, false), borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -150,7 +161,7 @@ func TestLocationIterator_NextBare(t *testing.T) {
 	createValidDotGit(require, fs, "foo")
 	fs.MkdirAll("qux", 0755)
 
-	iter, err := NewLocationIterator(NewLocation(fs, true), borges.RWMode)
+	iter, err := NewLocationIterator(NewLocation("foo", fs, true), borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -174,7 +185,7 @@ func TestLocationIterator_NextDeep(t *testing.T) {
 	createValidDotGit(require, fs, "qux/bar/baz/.git")
 	createValidDotGit(require, fs, "qux/bar/.git")
 
-	iter, err := NewLocationIterator(NewLocation(fs, false), borges.RWMode)
+	iter, err := NewLocationIterator(NewLocation("foo", fs, false), borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID

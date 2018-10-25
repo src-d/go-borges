@@ -8,27 +8,27 @@ import (
 	"github.com/src-d/go-borges/util"
 
 	"gopkg.in/src-d/go-billy.v4"
-	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
-var (
-	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
-	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
-)
-
 // Library controls the persistence of multiple git repositories.
 type Location struct {
+	id   borges.LocationID
 	fs   billy.Filesystem
 	bare bool
 }
 
 // NewLibrary creates a new Library based on the given filesystem.
-func NewLocation(fs billy.Filesystem, bare bool) *Location {
-	return &Location{fs: fs, bare: bare}
+func NewLocation(id borges.LocationID, fs billy.Filesystem, bare bool) *Location {
+	return &Location{id: id, fs: fs, bare: bare}
+}
+
+// ID returns the ID for this Location.
+func (l *Location) ID() borges.LocationID {
+	return l.id
 }
 
 // GetOrInit get the requested repository based on the given URL, or inits a
@@ -54,7 +54,7 @@ func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 	}
 
 	if has {
-		return nil, ErrRepositoryExists.New(id)
+		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
 	s, err := l.repositoryStorer(id)
@@ -62,7 +62,7 @@ func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 		return nil, err
 	}
 
-	r, err := borges.InitRepository(id, s, nil)
+	r, err := borges.InitRepository(id, l.id, s)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (*borges.Reposi
 	}
 
 	if !has {
-		return nil, ErrRepositoryNotExists.New(id)
+		return nil, borges.ErrRepositoryNotExists.New(id)
 	}
 
 	return l.doGet(id, mode)
@@ -118,7 +118,7 @@ func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*borges.Repo
 		s = &util.ReadOnlyStorer{s}
 	}
 
-	return borges.OpenRepository(id, s, nil)
+	return borges.OpenRepository(id, l.id, s)
 }
 
 func (l *Location) repositoryStorer(id borges.RepositoryID) (

@@ -4,15 +4,27 @@ import (
 	"path"
 	"strings"
 
-	"gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	"gopkg.in/src-d/go-git.v4/storage"
 )
 
+var (
+	ErrNotImplemented      = errors.NewKind("not implemented")
+	ErrLocationNotExists   = errors.NewKind("location %s not exists")
+	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
+	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
+)
+
 type Library interface {
-	Location
-	Location(id LocationID) Location
+	GetOrInit(RepositoryID) (*Repository, error)
+	Init(RepositoryID) (*Repository, error)
+	Has(RepositoryID) (bool, LocationID, error)
+	Get(RepositoryID, Mode) (*Repository, error)
+	Repositories(Mode) (RepositoryIterator, error)
+
+	Location(id LocationID) (Location, error)
 	//Locations() (LocationIter, error)
 }
 
@@ -25,7 +37,12 @@ const (
 
 type LocationID string
 
+func MustLocationID(id string) LocationID {
+	return LocationID(id)
+}
+
 type Location interface {
+	ID() LocationID
 	GetOrInit(RepositoryID) (*Repository, error)
 	Init(RepositoryID) (*Repository, error)
 	Has(RepositoryID) (bool, error)
@@ -54,26 +71,36 @@ func (id RepositoryID) String() string {
 	return string(id)
 }
 
-func OpenRepository(id RepositoryID, s storage.Storer, worktree billy.Filesystem) (*Repository, error) {
-	r, err := git.Open(s, worktree)
+func OpenRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repository, error) {
+	r, err := git.Open(s, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Repository{id, r}, nil
+	return &Repository{
+		ID:         id,
+		LocationID: l,
+		Repository: r,
+	}, nil
 }
 
-func InitRepository(id RepositoryID, s storage.Storer, worktree billy.Filesystem) (*Repository, error) {
-	r, err := git.Init(s, worktree)
+func InitRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repository, error) {
+	r, err := git.Init(s, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Repository{id, r}, nil
+	return &Repository{
+		ID:         id,
+		LocationID: l,
+		Repository: r,
+	}, nil
 }
 
 type Repository struct {
-	ID RepositoryID
+	ID         RepositoryID
+	LocationID LocationID
+
 	*git.Repository
 
 	//    Rollback() error
