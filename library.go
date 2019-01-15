@@ -8,10 +8,12 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	"gopkg.in/src-d/go-git.v4/storage"
+	"gopkg.in/src-d/go-git.v4/storage/transactional"
 )
 
 var (
 	ErrNotImplemented      = errors.NewKind("not implemented")
+	ErrModeNotSupported    = errors.NewKind("repository mode %q not supported")
 	ErrLocationNotExists   = errors.NewKind("location %s not exists")
 	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
 	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
@@ -32,6 +34,7 @@ type Mode int
 
 const (
 	RWMode Mode = iota
+	TransactionalRWMode
 	ReadOnlyMode
 )
 
@@ -93,6 +96,7 @@ func InitRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repositor
 	return &Repository{
 		ID:         id,
 		LocationID: l,
+		Mode:       RWMode,
 		Repository: r,
 	}, nil
 }
@@ -100,9 +104,17 @@ func InitRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repositor
 type Repository struct {
 	ID         RepositoryID
 	LocationID LocationID
+	Mode       Mode
 
 	*git.Repository
-
 	//    Rollback() error
-	//    Commit() (error)
+}
+
+func (r *Repository) Commit() error {
+	ts, ok := r.Storer.(*transactional.Storage)
+	if !ok {
+		return nil
+	}
+
+	return ts.Commit()
 }
