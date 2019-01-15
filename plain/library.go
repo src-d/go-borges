@@ -1,6 +1,8 @@
 package plain
 
-import "github.com/src-d/go-borges"
+import (
+	"github.com/src-d/go-borges"
+)
 
 type Library struct {
 	l map[borges.LocationID]*Location

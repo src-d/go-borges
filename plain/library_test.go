@@ -20,8 +20,8 @@ func TestLibrary(t *testing.T) {
 func TestLibrary_Has(t *testing.T) {
 	require := require.New(t)
 
-	lfoo := NewLocation("foo", memfs.New(), false)
-	lbar := NewLocation("bar", memfs.New(), false)
+	lfoo, _ := NewLocation("foo", memfs.New(), nil)
+	lbar, _ := NewLocation("bar", memfs.New(), nil)
 
 	l := NewLibrary()
 	l.AddLocation(lfoo)
@@ -42,8 +42,8 @@ func TestLibrary_Has(t *testing.T) {
 func TestLibrary_Get(t *testing.T) {
 	require := require.New(t)
 
-	lfoo := NewLocation("foo", memfs.New(), false)
-	lbar := NewLocation("bar", memfs.New(), false)
+	lfoo, _ := NewLocation("foo", memfs.New(), nil)
+	lbar, _ := NewLocation("bar", memfs.New(), nil)
 
 	l := NewLibrary()
 	l.AddLocation(lfoo)
@@ -74,8 +74,10 @@ func TestLibrary_Get_NotFound(t *testing.T) {
 func TestLocation_Location(t *testing.T) {
 	require := require.New(t)
 
+	lfoo, _ := NewLocation("foo", memfs.New(), nil)
+
 	l := NewLibrary()
-	l.AddLocation(NewLocation("foo", memfs.New(), false))
+	l.AddLocation(lfoo)
 
 	r, err := l.Location("foo")
 	require.NoError(err)

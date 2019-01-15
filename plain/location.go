@@ -8,22 +8,45 @@ import (
 	"github.com/src-d/go-borges/util"
 
 	"gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
+	"gopkg.in/src-d/go-git.v4/storage/transactional"
 )
 
-// Library controls the persistence of multiple git repositories.
+type LocationOptions struct {
+	Bare               bool
+	Transactional      bool
+	TemporalFilesystem billy.Filesystem
+}
+
+// Validate validates the fields and sets the default values.
+func (o *LocationOptions) Validate() error {
+	if o.Transactional && o.TemporalFilesystem == nil {
+		o.TemporalFilesystem = memfs.New()
+	}
+
+	return nil
+}
+
 type Location struct {
 	id   borges.LocationID
 	fs   billy.Filesystem
-	bare bool
+	opts *LocationOptions
 }
 
-// NewLibrary creates a new Library based on the given filesystem.
-func NewLocation(id borges.LocationID, fs billy.Filesystem, bare bool) *Location {
-	return &Location{id: id, fs: fs, bare: bare}
+func NewLocation(id borges.LocationID, fs billy.Filesystem, opts *LocationOptions) (*Location, error) {
+	if opts == nil {
+		opts = &LocationOptions{}
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &Location{id: id, fs: fs, opts: opts}, nil
 }
 
 // ID returns the ID for this Location.
@@ -57,7 +80,7 @@ func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
-	s, err := l.repositoryStorer(id)
+	s, err := l.repositoryStorer(id, borges.RWMode)
 	if err != nil {
 		return nil, err
 	}
@@ -109,30 +132,52 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (*borges.Reposi
 
 // doGet, is the basic operation of open a repository without any checking.
 func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*borges.Repository, error) {
-	s, err := l.repositoryStorer(id)
+	s, err := l.repositoryStorer(id, mode)
 	if err != nil {
 		return nil, err
-	}
-
-	if mode == borges.ReadOnlyMode {
-		s = &util.ReadOnlyStorer{s}
 	}
 
 	return borges.OpenRepository(id, l.id, s)
 }
 
-func (l *Location) repositoryStorer(id borges.RepositoryID) (
+func (l *Location) repositoryStorer(id borges.RepositoryID, mode borges.Mode) (
 	storage.Storer, error) {
+
 	fs, err := l.fs.Chroot(l.repositoryPath(id))
 	if err != nil {
 		return nil, err
 	}
 
-	return filesystem.NewStorage(fs, cache.NewObjectLRUDefault()), nil
+	s := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+
+	switch mode {
+	case borges.ReadOnlyMode:
+		return &util.ReadOnlyStorer{s}, nil
+	case borges.RWMode:
+		if l.opts.Transactional {
+			return l.repositoryTemporalStorer(id, s)
+		}
+
+		return s, nil
+	default:
+		return nil, borges.ErrModeNotSupported.New(mode)
+	}
+}
+
+func (l *Location) repositoryTemporalStorer(id borges.RepositoryID, s storage.Storer) (
+	storage.Storer, error) {
+
+	fs, err := l.opts.TemporalFilesystem.Chroot(l.repositoryPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	ts := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+	return transactional.NewStorage(s, ts), nil
 }
 
 func (l *Location) repositoryPath(id borges.RepositoryID) string {
-	if l.bare {
+	if l.opts.Bare {
 		return id.String()
 	}
 
@@ -191,7 +236,7 @@ func (iter *LocationIterator) nextRepositoryPath() (string, error) {
 		}
 
 		path := iter.l.fs.Join(dir.path, fi.Name())
-		is, err := IsRepository(iter.l.fs, path, iter.l.bare)
+		is, err := IsRepository(iter.l.fs, path, iter.l.opts.Bare)
 		if err != nil {
 			return path, err
 		}
