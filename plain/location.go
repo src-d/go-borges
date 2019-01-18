@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
@@ -56,7 +57,7 @@ func (l *Location) ID() borges.LocationID {
 
 // GetOrInit get the requested repository based on the given URL, or inits a
 // new repository. If the repository is opened this will be done in RWMode.
-func (l *Location) GetOrInit(id borges.RepositoryID) (*borges.Repository, error) {
+func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (*borges.Repository, error)
 }
 
 // Init inits a new repository for the given URL.
-func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
+func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,11 @@ func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 		return nil, err
 	}
 
-	r, err := borges.InitRepository(id, l.id, s)
+	return l.initRepository(id, s)
+}
+
+func (l *Location) initRepository(id borges.RepositoryID, s storage.Storer) (*Repository, error) {
+	r, err := git.Init(s, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +104,12 @@ func (l *Location) Init(id borges.RepositoryID) (*borges.Repository, error) {
 		return nil, err
 	}
 
-	return r, nil
+	return &Repository{
+		id:         id,
+		l:          l,
+		mode:       borges.RWMode,
+		Repository: r,
+	}, nil
 }
 
 // Has returns true if a repository with the given URL exists.
@@ -117,7 +127,7 @@ func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 }
 
 // Get get the requested repository based on the given URL.
-func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (*borges.Repository, error) {
+func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -131,13 +141,23 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (*borges.Reposi
 }
 
 // doGet, is the basic operation of open a repository without any checking.
-func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*borges.Repository, error) {
+func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*Repository, error) {
 	s, err := l.repositoryStorer(id, mode)
 	if err != nil {
 		return nil, err
 	}
 
-	return borges.OpenRepository(id, l.id, s)
+	r, err := git.Open(s, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Repository{
+		id:         id,
+		l:          l,
+		mode:       mode,
+		Repository: r,
+	}, nil
 }
 
 func (l *Location) repositoryStorer(id borges.RepositoryID, mode borges.Mode) (
@@ -253,7 +273,7 @@ func (iter *LocationIterator) nextRepositoryPath() (string, error) {
 	}
 }
 
-func (iter *LocationIterator) Next() (*borges.Repository, error) {
+func (iter *LocationIterator) Next() (borges.Repository, error) {
 	path, err := iter.nextRepositoryPath()
 	if err != nil {
 		return nil, err
@@ -268,7 +288,7 @@ func (iter *LocationIterator) Next() (*borges.Repository, error) {
 
 }
 
-func (iter *LocationIterator) ForEach(cb func(*borges.Repository) error) error {
+func (iter *LocationIterator) ForEach(cb func(borges.Repository) error) error {
 	return borges.ForEachIterator(iter, cb)
 }
 

@@ -29,8 +29,8 @@ func TestLocation(t *testing.T) {
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
-	err = iter.ForEach(func(r *borges.Repository) error {
-		ids = append(ids, r.ID)
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
 		return nil
 	})
 
@@ -61,7 +61,7 @@ func TestLocation_Init(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	remote, err := r.Remote("origin")
+	remote, err := r.R().Remote("origin")
 	require.NoError(err)
 	require.NotNil(remote)
 
@@ -98,7 +98,7 @@ func TestLocation_Get(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.MustLocationID("foo"), r.LocationID)
+	require.Equal(borges.MustLocationID("foo"), r.LocationID())
 }
 
 func TestLocation_Get_NotFound(t *testing.T) {
@@ -125,7 +125,7 @@ func TestLocation_Get_ReadOnlyMode(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	err = r.Storer.SetReference(plumbing.NewHashReference("foo", plumbing.ZeroHash))
+	err = r.R().Storer.SetReference(plumbing.NewHashReference("foo", plumbing.ZeroHash))
 	require.True(util.ErrReadOnlyStorer.Is(err))
 }
 
@@ -142,7 +142,7 @@ func TestLocation_Get_Transactional(t *testing.T) {
 	require.NotNil(r)
 
 	h := plumbing.NewHash("434611b74cb54538088c6aeed4ed27d3044064fa")
-	err = r.Storer.SetReference(plumbing.NewHashReference("refs/heads/foo", h))
+	err = r.R().Storer.SetReference(plumbing.NewHashReference("refs/heads/foo", h))
 	require.NoError(err)
 
 	err = r.Commit()
@@ -151,7 +151,7 @@ func TestLocation_Get_Transactional(t *testing.T) {
 	r, err = location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
 	require.NoError(err)
 
-	ref, err := r.Storer.Reference("refs/heads/foo")
+	ref, err := r.R().Storer.Reference("refs/heads/foo")
 	require.NoError(err)
 	require.Equal(ref.Hash(), h)
 }
@@ -185,8 +185,8 @@ func TestLocationIterator_Next(t *testing.T) {
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
-	err = iter.ForEach(func(r *borges.Repository) error {
-		ids = append(ids, r.ID)
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
 		return nil
 	})
 
@@ -209,8 +209,8 @@ func TestLocationIterator_NextBare(t *testing.T) {
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
-	err = iter.ForEach(func(r *borges.Repository) error {
-		ids = append(ids, r.ID)
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
 		return nil
 	})
 
@@ -236,8 +236,8 @@ func TestLocationIterator_NextDeep(t *testing.T) {
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
-	err = iter.ForEach(func(r *borges.Repository) error {
-		ids = append(ids, r.ID)
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
 		return nil
 	})
 

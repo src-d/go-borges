@@ -59,7 +59,7 @@ func TestLibrary_Get(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.MustLocationID("bar"), r.LocationID)
+	require.Equal(borges.MustLocationID("bar"), r.LocationID())
 }
 
 func TestLibrary_Get_NotFound(t *testing.T) {

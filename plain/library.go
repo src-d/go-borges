@@ -20,12 +20,12 @@ func (l *Library) AddLocation(location *Location) {
 }
 
 // GetOrInit is not implemented. It honors the borges.Library interface.
-func (l *Library) GetOrInit(borges.RepositoryID) (*borges.Repository, error) {
+func (l *Library) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Init is not implemented. It honors the borges.Library interface.
-func (l *Library) Init(borges.RepositoryID) (*borges.Repository, error) {
+func (l *Library) Init(borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
@@ -47,7 +47,7 @@ func (l *Library) Has(id borges.RepositoryID) (bool, borges.LocationID, error) {
 }
 
 // Get opens a repository with the given id in the given mode.
-func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (*borges.Repository, error) {
+func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository, error) {
 	for _, loc := range l.l {
 		ok, err := loc.Has(id)
 		if err != nil {

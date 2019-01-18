@@ -7,8 +7,6 @@ import (
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
-	"gopkg.in/src-d/go-git.v4/storage"
-	"gopkg.in/src-d/go-git.v4/storage/transactional"
 )
 
 var (
@@ -20,10 +18,10 @@ var (
 )
 
 type Library interface {
-	GetOrInit(RepositoryID) (*Repository, error)
-	Init(RepositoryID) (*Repository, error)
+	GetOrInit(RepositoryID) (Repository, error)
+	Init(RepositoryID) (Repository, error)
 	Has(RepositoryID) (bool, LocationID, error)
-	Get(RepositoryID, Mode) (*Repository, error)
+	Get(RepositoryID, Mode) (Repository, error)
 	Repositories(Mode) (RepositoryIterator, error)
 
 	Location(id LocationID) (Location, error)
@@ -46,10 +44,10 @@ func MustLocationID(id string) LocationID {
 
 type Location interface {
 	ID() LocationID
-	GetOrInit(RepositoryID) (*Repository, error)
-	Init(RepositoryID) (*Repository, error)
+	GetOrInit(RepositoryID) (Repository, error)
+	Init(RepositoryID) (Repository, error)
 	Has(RepositoryID) (bool, error)
-	Get(RepositoryID, Mode) (*Repository, error)
+	Get(RepositoryID, Mode) (Repository, error)
 	Repositories(Mode) (RepositoryIterator, error)
 }
 
@@ -74,47 +72,11 @@ func (id RepositoryID) String() string {
 	return string(id)
 }
 
-func OpenRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repository, error) {
-	r, err := git.Open(s, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Repository{
-		ID:         id,
-		LocationID: l,
-		Repository: r,
-	}, nil
-}
-
-func InitRepository(id RepositoryID, l LocationID, s storage.Storer) (*Repository, error) {
-	r, err := git.Init(s, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Repository{
-		ID:         id,
-		LocationID: l,
-		Mode:       RWMode,
-		Repository: r,
-	}, nil
-}
-
-type Repository struct {
-	ID         RepositoryID
-	LocationID LocationID
-	Mode       Mode
-
-	*git.Repository
-	//    Rollback() error
-}
-
-func (r *Repository) Commit() error {
-	ts, ok := r.Storer.(*transactional.Storage)
-	if !ok {
-		return nil
-	}
-
-	return ts.Commit()
+type Repository interface {
+	ID() RepositoryID
+	LocationID() LocationID
+	Mode() Mode
+	Commit() error
+	Rollback() error
+	R() *git.Repository
 }

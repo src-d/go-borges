@@ -11,14 +11,14 @@ var (
 )
 
 type RepositoryIterator interface {
-	Next() (*Repository, error)
-	ForEach(func(*Repository) error) error
+	Next() (Repository, error)
+	ForEach(func(Repository) error) error
 	Close()
 }
 
 // ForEachIterator is a helper function to build iterators without need to
 // rewrite the same ForEach function each time.
-func ForEachIterator(iter RepositoryIterator, cb func(*Repository) error) error {
+func ForEachIterator(iter RepositoryIterator, cb func(Repository) error) error {
 	defer iter.Close()
 	for {
 		r, err := iter.Next()
