@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/util"
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
@@ -221,7 +222,7 @@ func (iter *LocationIterator) Next() (borges.Repository, error) {
 // error happens or the end of the iter is reached. If ErrStop is sent the
 // iteration is stop but no error is returned. The iterator is closed.
 func (iter *LocationIterator) ForEach(cb func(borges.Repository) error) error {
-	return borges.ForEachIterator(iter, cb)
+	return util.ForEachRepositoryIterator(iter, cb)
 }
 
 // Close releases any resources used by the iterator.

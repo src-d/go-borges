@@ -2,7 +2,6 @@ package borges
 
 import (
 	"errors"
-	"io"
 )
 
 var (
@@ -21,28 +20,4 @@ type RepositoryIterator interface {
 	ForEach(func(Repository) error) error
 	// Close releases any resources used by the iterator.
 	Close()
-}
-
-// ForEachIterator is a helper function to build iterators without need to
-// rewrite the same ForEach function each time.
-func ForEachIterator(iter RepositoryIterator, cb func(Repository) error) error {
-	defer iter.Close()
-	for {
-		r, err := iter.Next()
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-
-			return err
-		}
-
-		if err := cb(r); err != nil {
-			if err == ErrStop {
-				return nil
-			}
-
-			return err
-		}
-	}
 }

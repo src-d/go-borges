@@ -92,3 +92,35 @@ func TestLocation_Location_NotFound(t *testing.T) {
 	require.True(borges.ErrLocationNotExists.Is(err))
 	require.Nil(r)
 }
+
+func TestLibrary_Repositories(t *testing.T) {
+	require := require.New(t)
+
+	lfoo, _ := NewLocation("foo", memfs.New(), nil)
+	lbar, _ := NewLocation("bar", memfs.New(), nil)
+
+	l := NewLibrary()
+	l.AddLocation(lfoo)
+	l.AddLocation(lbar)
+
+	_, err := lbar.Init("foo/qux")
+	require.NoError(err)
+
+	_, err = lfoo.Init("foo/bar")
+	require.NoError(err)
+
+	iter, err := l.Repositories(borges.RWMode)
+	require.NoError(err)
+
+	var ids []borges.RepositoryID
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
+		return nil
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.RepositoryID{
+		"foo/qux",
+		"foo/bar",
+	})
+}

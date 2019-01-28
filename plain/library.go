@@ -2,6 +2,7 @@ package plain
 
 import (
 	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/util"
 )
 
 // Library represents a borges.Library implementation based on billy.Filesystems.
@@ -77,6 +78,16 @@ func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
 	return location, nil
 }
 
-func (l *Library) Repositories(borges.Mode) (borges.RepositoryIterator, error) {
-	return nil, nil
+// Repositories returns a RepositoryIterator that iterates through all the
+// repositories contained in all Location contained in this Library.
+func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
+	locs := make([]borges.Location, len(l.l))
+
+	var i int
+	for _, loc := range l.l {
+		locs[i] = loc
+		i++
+	}
+
+	return util.NewLocationRepositoryIterator(locs, mode), nil
 }
