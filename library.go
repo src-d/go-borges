@@ -15,42 +15,103 @@ var (
 	ErrLocationNotExists   = errors.NewKind("location %s not exists")
 	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
 	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
+	ErrNonTransactional    = errors.NewKind("non transactional repository")
 )
 
-type Library interface {
-	GetOrInit(RepositoryID) (Repository, error)
-	Init(RepositoryID) (Repository, error)
-	Has(RepositoryID) (bool, LocationID, error)
-	Get(RepositoryID, Mode) (Repository, error)
-	Repositories(Mode) (RepositoryIterator, error)
+// Repository interface represents a git.Repository, with information about
+// how it was open and where is located. Also provides Transactional
+// capabilities through the method Commit.
+type Repository interface {
+	// ID returns the RepositoryID.
+	ID() RepositoryID
+	// LocationID returns the LocationID from the Location where it was retrieved.
+	LocationID() LocationID
+	// Mode returns the Mode how it was opened.
+	Mode() Mode
+	// Commit persists all the write operations done since was open, if the
+	// repository was opened with TransactionalRWMode, otherwise should return
+	// ErrNonTransactional.
+	Commit() error
+	// Close closes the repository, if the repository was opened in transactional
+	// Mode, will delete any write operation pending to be written.
+	Close() error
+	// R returns the git.Repository.
+	R() *git.Repository
+}
 
-	Location(id LocationID) (Location, error)
+// Library interface represents a group of different location, it allows access
+// to any repository stored on any location. Also allows the iteration of the
+// locations to perform full scan operations. Library is the default entrypoint
+// for accessing the repositories, should be used when the Location is not
+// important.
+type Library interface {
+	// Init initializes a new Repository in a Location, the choosen Location
+	// is dependant on the implementation, if this this not supported should
+	// return ErrNotImplemented. If a repository with the given RepositoryID
+	// already exists ErrRepositoryExists is returned.
+	Init(RepositoryID) (Repository, error)
+	// Get open a repository with the given RepositoryID, it itereates all the
+	// library locations until this repository is found. If a repository with
+	// the given RepositoryID can't be found the ErrRepositoryNotExists is
+	// returned.
+	Get(RepositoryID, Mode) (Repository, error)
+	// GetOrInit open or initilizes a Repository at a Location, if this this not
+	// supported should return ErrNotImplemented.
+	GetOrInit(RepositoryID) (Repository, error)
+	// Has returns true if the given RepositoryID matches any repository at
+	// any location belonging to this Library.
+	Has(RepositoryID) (bool, LocationID, error)
+	// Repositories returns a RepositoryIterator that iterates through all
+	// the repositories contained in all Location contained in this Library.
+	Repositories(Mode) (RepositoryIterator, error)
+	// Location returns the Location with the given LocationID, if a location
+	// can't be found ErrLocationNotExists is returned.
+	Location(LocationID) (Location, error)
 	//Locations() (LocationIter, error)
 }
 
+// Mode is the different modes to open a Repository.
 type Mode int
 
 const (
+	// RWMode allows to perform read and write operations over a repository.
 	RWMode Mode = iota
-	TransactionalRWMode
+	// ReadOnlyMode allows only read-only operations over a repository.
 	ReadOnlyMode
+	// TransactionalRWMode allows to perform read and write operations over
+	// a repository, but the write operations are not persisted to the
+	// repository until Repository.Commit is called.
+	TransactionalRWMode
 )
 
+// LocationID represents a Location identifier.
 type LocationID string
 
-func MustLocationID(id string) LocationID {
-	return LocationID(id)
-}
-
+// Location interface represents a physical location where the repositories are
+// stored, it allows access only to the repositories contained in this location.
 type Location interface {
+	// ID returns the LocationID for this Location.
 	ID() LocationID
-	GetOrInit(RepositoryID) (Repository, error)
+	// Init initializes a new Repository at this Location.
 	Init(RepositoryID) (Repository, error)
-	Has(RepositoryID) (bool, error)
+	// Get open a repository with the given RepositoryID, this operation doesn't
+	// perform any read operation. If a repository with the given RepositoryID
+	// already exists ErrRepositoryExists is returned.
 	Get(RepositoryID, Mode) (Repository, error)
+	// GetOrInit open or initilizes a Repository at this Location. If a
+	// repository with the given RepositoryID can't be found the
+	// ErrRepositoryNotExists is returned.
+	GetOrInit(RepositoryID) (Repository, error)
+	// Has returns true if the given RepositoryID matches any repository at
+	// this location.
+	Has(RepositoryID) (bool, error)
+	// Repositories returns a RepositoryIterator that iterates through all
+	// the repositories contained in this Location.
 	Repositories(Mode) (RepositoryIterator, error)
 }
 
+// RepositoryID represents a Repository identifier, these IDs regularly are
+// based on a http or git remore URL, but can be based on any other concept.
 type RepositoryID string
 
 // NewRepositoryID returns a new RepositoryID based on a given endpoint.
@@ -70,13 +131,4 @@ func NewRepositoryID(endpoint string) (RepositoryID, error) {
 
 func (id RepositoryID) String() string {
 	return string(id)
-}
-
-type Repository interface {
-	ID() RepositoryID
-	LocationID() LocationID
-	Mode() Mode
-	Commit() error
-	Close() error
-	R() *git.Repository
 }
