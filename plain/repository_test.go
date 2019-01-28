@@ -72,6 +72,18 @@ func TestOpenRepository(t *testing.T) {
 	require.Equal("origin", remote.Config().Name)
 }
 
+func TestRepository_Commit_OnNonTransactional(t *testing.T) {
+	require := require.New(t)
+
+	location := newLocationWithFixtures(require, nil)
+
+	r, err := location.Get("basic.git", borges.RWMode)
+	require.NoError(err)
+
+	err = r.Commit()
+	require.True(borges.ErrNonTransactional.Is(err))
+}
+
 func TestRepository_Close(t *testing.T) {
 	require := require.New(t)
 	tmp := memfs.New()

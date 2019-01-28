@@ -152,17 +152,17 @@ func (r *Repository) cleanupTemporal() error {
 }
 
 // Commit persists all the write operations done since was open, if the
-// repository was opened with TransactionalRWMode, otherwise should return
+// repository wasn't opened in a Location with Transactions enable returns
 // ErrNonTransactional.
 func (r *Repository) Commit() (err error) {
 	if !r.l.opts.Transactional {
-		return nil
+		return borges.ErrNonTransactional.New()
 	}
 
 	defer ioutil.CheckClose(r, &err)
 	ts, ok := r.Storer.(*transactional.Storage)
 	if !ok {
-		return nil
+		panic("unreachable code")
 	}
 
 	err = ts.Commit()

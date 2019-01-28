@@ -29,7 +29,7 @@ type Repository interface {
 	// Mode returns the Mode how it was opened.
 	Mode() Mode
 	// Commit persists all the write operations done since was open, if the
-	// repository was opened with TransactionalRWMode, otherwise should return
+	// repository doesn't provide Transactional capabilities should return
 	// ErrNonTransactional.
 	Commit() error
 	// Close closes the repository, if the repository was opened in transactional
@@ -79,10 +79,6 @@ const (
 	RWMode Mode = iota
 	// ReadOnlyMode allows only read-only operations over a repository.
 	ReadOnlyMode
-	// TransactionalRWMode allows to perform read and write operations over
-	// a repository, but the write operations are not persisted to the
-	// repository until Repository.Commit is called.
-	TransactionalRWMode
 )
 
 // LocationID represents a Location identifier.

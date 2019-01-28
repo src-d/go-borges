@@ -269,7 +269,33 @@ func TestLocationIterator_NextBare(t *testing.T) {
 	require.Equal(ids[0].String(), "foo")
 }
 
-func TestLocationIterator_NextDeep(t *testing.T) {
+func TestLocationIterator_Next_DiferentLevels(t *testing.T) {
+	require := require.New(t)
+
+	fs := memfs.New()
+	createValidDotGit(require, fs, "foo/qux/.git")
+	createValidDotGit(require, fs, "qux/bar/baz/.git")
+	createValidDotGit(require, fs, "qux/baz/.git")
+
+	location, err := NewLocation("foo", fs, nil)
+	require.NoError(err)
+
+	iter, err := NewLocationIterator(location, borges.RWMode)
+	require.NoError(err)
+
+	var ids []borges.RepositoryID
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
+		return nil
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.RepositoryID{
+		"foo/qux", "qux/bar/baz", "qux/baz",
+	})
+}
+
+func TestLocationIterator_Next_Deep(t *testing.T) {
 	require := require.New(t)
 
 	fs := memfs.New()
