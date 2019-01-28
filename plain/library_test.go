@@ -36,7 +36,7 @@ func TestLibrary_Has(t *testing.T) {
 	ok, location, err := l.Has("http://github.com/foo/qux")
 	require.NoError(err)
 	require.True(ok)
-	require.Equal(borges.MustLocationID("bar"), location)
+	require.Equal(borges.LocationID("bar"), location)
 }
 
 func TestLibrary_Get(t *testing.T) {
@@ -59,7 +59,7 @@ func TestLibrary_Get(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.MustLocationID("bar"), r.LocationID())
+	require.Equal(borges.LocationID("bar"), r.LocationID())
 }
 
 func TestLibrary_Get_NotFound(t *testing.T) {

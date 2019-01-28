@@ -4,10 +4,12 @@ import (
 	"github.com/src-d/go-borges"
 )
 
+// Library represents a borges.Library implementation based on billy.Filesystems.
 type Library struct {
 	l map[borges.LocationID]*Location
 }
 
+// NewLibrary returns a new empty Library instance.
 func NewLibrary() *Library {
 	return &Library{
 		l: make(map[borges.LocationID]*Location, 0),
@@ -29,8 +31,8 @@ func (l *Library) Init(borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
-// Has return true and the LocationID if a repository with the given ID exists
-// on the Libary.
+// Has returns true and the LocationID if the given RepositoryID matches any
+// repository at any location belonging to this Library.
 func (l *Library) Has(id borges.RepositoryID) (bool, borges.LocationID, error) {
 	for _, loc := range l.l {
 		ok, err := loc.Has(id)
@@ -46,7 +48,9 @@ func (l *Library) Has(id borges.RepositoryID) (bool, borges.LocationID, error) {
 	return false, ".", nil
 }
 
-// Get opens a repository with the given id in the given mode.
+// Get open a repository with the given RepositoryID, it itereates all the
+// library locations until this repository is found. If a repository with the
+// given RepositoryID can't be found the ErrRepositoryNotExists is returned.
 func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository, error) {
 	for _, loc := range l.l {
 		ok, err := loc.Has(id)
@@ -62,7 +66,8 @@ func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository,
 	return nil, borges.ErrRepositoryNotExists.New(id)
 }
 
-// Location returns the a Location with the given ID, if exists.
+// Location returns the a Location with the given ID, if exists, otherwise
+// ErrLocationNotExists is returned.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
 	location, ok := l.l[id]
 	if !ok {

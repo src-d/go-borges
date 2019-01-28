@@ -118,7 +118,7 @@ func TestLocation_Get(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.MustLocationID("foo"), r.LocationID())
+	require.Equal(borges.LocationID("foo"), r.LocationID())
 }
 
 func TestLocation_Get_NotFound(t *testing.T) {

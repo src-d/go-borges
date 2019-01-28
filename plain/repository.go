@@ -14,6 +14,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 )
 
+// Repository represents a git plain repository.
 type Repository struct {
 	id           borges.RepositoryID
 	l            *Location
@@ -116,22 +117,28 @@ func repositoryTemporalStorer(l *Location, id borges.RepositoryID, parent storag
 	return
 }
 
+// R returns the git.Repository.
 func (r *Repository) R() *git.Repository {
 	return r.Repository
 }
 
+// ID returns the RepositoryID.
 func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
+// LocationID returns the LocationID from the Location where it was retrieved.
 func (r *Repository) LocationID() borges.LocationID {
 	return r.l.ID()
 }
 
+// Mode returns the Mode how it was opened.
 func (r *Repository) Mode() borges.Mode {
 	return r.mode
 }
 
+// Close closes the repository, if the repository was opened in transactional
+// Mode, will delete any write operation pending to be written.
 func (r *Repository) Close() error {
 	if !r.l.opts.Transactional {
 		return nil
@@ -144,6 +151,9 @@ func (r *Repository) cleanupTemporal() error {
 	return billy.RemoveAll(r.l.opts.TemporalFilesystem, r.temporalPath)
 }
 
+// Commit persists all the write operations done since was open, if the
+// repository was opened with TransactionalRWMode, otherwise should return
+// ErrNonTransactional.
 func (r *Repository) Commit() (err error) {
 	if !r.l.opts.Transactional {
 		return nil

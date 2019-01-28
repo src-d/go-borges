@@ -56,10 +56,11 @@ type Library interface {
 	// returned.
 	Get(RepositoryID, Mode) (Repository, error)
 	// GetOrInit open or initilizes a Repository at a Location, if this this not
-	// supported should return ErrNotImplemented.
+	// supported should return ErrNotImplemented. If the repository is opened
+	// this will be done in RWMode.
 	GetOrInit(RepositoryID) (Repository, error)
-	// Has returns true if the given RepositoryID matches any repository at
-	// any location belonging to this Library.
+	// Has returns true and the LocationID if the given RepositoryID matches any
+	// repository at any location belonging to this Library.
 	Has(RepositoryID) (bool, LocationID, error)
 	// Repositories returns a RepositoryIterator that iterates through all
 	// the repositories contained in all Location contained in this Library.
@@ -100,7 +101,8 @@ type Location interface {
 	Get(RepositoryID, Mode) (Repository, error)
 	// GetOrInit open or initilizes a Repository at this Location. If a
 	// repository with the given RepositoryID can't be found the
-	// ErrRepositoryNotExists is returned.
+	// ErrRepositoryNotExists is returned. If the repository is opened this will
+	// be done in RWMode.
 	GetOrInit(RepositoryID) (Repository, error)
 	// Has returns true if the given RepositoryID matches any repository at
 	// this location.
