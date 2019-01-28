@@ -55,7 +55,7 @@ func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository,
 		}
 
 		if ok {
-			return loc.doGet(id, m)
+			return openRepository(loc, id, m)
 		}
 	}
 

@@ -5,16 +5,9 @@ import (
 	"os"
 
 	"github.com/src-d/go-borges"
-	"github.com/src-d/go-borges/util"
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/config"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/storage"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"gopkg.in/src-d/go-git.v4/storage/transactional"
 )
 
 type LocationOptions struct {
@@ -81,40 +74,12 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
-	s, err := l.repositoryStorer(id, borges.RWMode)
-	if err != nil {
-		return nil, err
-	}
-
-	return l.initRepository(id, s)
-}
-
-func (l *Location) initRepository(id borges.RepositoryID, s storage.Storer) (*Repository, error) {
-	r, err := git.Init(s, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = r.CreateRemote(&config.RemoteConfig{
-		Name: "origin",
-		URLs: []string{id.String()},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Repository{
-		id:         id,
-		l:          l,
-		mode:       borges.RWMode,
-		Repository: r,
-	}, nil
+	return initRepository(l, id)
 }
 
 // Has returns true if a repository with the given URL exists.
 func (l *Location) Has(id borges.RepositoryID) (bool, error) {
-	_, err := l.fs.Stat(l.repositoryPath(id))
+	_, err := l.fs.Stat(l.RepositoryPath(id))
 	if err == nil {
 		return true, nil
 	}
@@ -137,66 +102,11 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Reposit
 		return nil, borges.ErrRepositoryNotExists.New(id)
 	}
 
-	return l.doGet(id, mode)
+	return openRepository(l, id, mode)
 }
 
-// doGet, is the basic operation of open a repository without any checking.
-func (l *Location) doGet(id borges.RepositoryID, mode borges.Mode) (*Repository, error) {
-	s, err := l.repositoryStorer(id, mode)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := git.Open(s, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Repository{
-		id:         id,
-		l:          l,
-		mode:       mode,
-		Repository: r,
-	}, nil
-}
-
-func (l *Location) repositoryStorer(id borges.RepositoryID, mode borges.Mode) (
-	storage.Storer, error) {
-
-	fs, err := l.fs.Chroot(l.repositoryPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	s := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
-
-	switch mode {
-	case borges.ReadOnlyMode:
-		return &util.ReadOnlyStorer{s}, nil
-	case borges.RWMode:
-		if l.opts.Transactional {
-			return l.repositoryTemporalStorer(id, s)
-		}
-
-		return s, nil
-	default:
-		return nil, borges.ErrModeNotSupported.New(mode)
-	}
-}
-
-func (l *Location) repositoryTemporalStorer(id borges.RepositoryID, s storage.Storer) (
-	storage.Storer, error) {
-
-	fs, err := l.opts.TemporalFilesystem.Chroot(l.repositoryPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	ts := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
-	return transactional.NewStorage(s, ts), nil
-}
-
-func (l *Location) repositoryPath(id borges.RepositoryID) string {
+// RepositoryPath returns the location in the filesystem for a given RepositoryID.
+func (l *Location) RepositoryPath(id borges.RepositoryID) string {
 	if l.opts.Bare {
 		return id.String()
 	}
@@ -250,7 +160,6 @@ func (iter *LocationIterator) nextRepositoryPath() (string, error) {
 		if len(dir.entries) == 0 {
 			iter.queue = iter.queue[1:]
 		}
-
 		if !fi.IsDir() {
 			continue
 		}
@@ -284,7 +193,7 @@ func (iter *LocationIterator) Next() (borges.Repository, error) {
 		return nil, err
 	}
 
-	return iter.l.doGet(id, iter.m)
+	return openRepository(iter.l, id, iter.m)
 
 }
 

@@ -77,6 +77,6 @@ type Repository interface {
 	LocationID() LocationID
 	Mode() Mode
 	Commit() error
-	Rollback() error
+	Close() error
 	R() *git.Repository
 }
