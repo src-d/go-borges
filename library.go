@@ -84,7 +84,7 @@ type LibraryID string
 type Library interface {
 	// ID returns the LibraryID for this Library.
 	ID() LibraryID
-	// Init initializes a new Repository in a Location, the choosen Location
+	// Init initializes a new Repository in a Location, the chosen Location
 	// is dependant on the implementation, if this this not supported should
 	// return ErrNotImplemented. If a repository with the given RepositoryID
 	// already exists ErrRepositoryExists is returned.
