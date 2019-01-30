@@ -10,13 +10,24 @@ import (
 )
 
 var (
-	ErrNotImplemented      = errors.NewKind("not implemented")
-	ErrModeNotSupported    = errors.NewKind("repository mode %q not supported")
-	ErrLocationNotExists   = errors.NewKind("location %s not exists")
-	ErrLibraryNotExists    = errors.NewKind("library %s not exists")
-	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
+	// ErrNotImplemented is returned by method of any implementation that are
+	// not implemented on this specific implementation.
+	ErrNotImplemented = errors.NewKind("not implemented")
+	// ErrModeNotSupported is returned in the case of a request to open a
+	// repository with a Mode not supported.
+	ErrModeNotSupported = errors.NewKind("repository mode %q not supported")
+	// ErrLocationNotExists when a Location is requested and can't be found.
+	ErrLocationNotExists = errors.NewKind("location %s not exists")
+	// ErrLibraryNotExists when a Library is requested and can't be found.
+	ErrLibraryNotExists = errors.NewKind("library %s not exists")
+	// ErrRepositoryExists an error returned on a request of Init on a location
+	// with a repository with this RepositoryID already exists.
+	ErrRepositoryExists = errors.NewKind("repository %s already exists")
+	// ErrRepositoryNotExists when a Repository is requested and can't be found.
 	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
-	ErrNonTransactional    = errors.NewKind("non transactional repository")
+	// ErrNonTransactional returned when Repository.Commit is called on a
+	// repository that not support transactions.
+	ErrNonTransactional = errors.NewKind("non transactional repository")
 )
 
 // RepositoryID represents a Repository identifier, these IDs regularly are
