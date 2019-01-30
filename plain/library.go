@@ -140,6 +140,24 @@ func (l *Library) doGetOnLibraries(id borges.RepositoryID, m borges.Mode) (borge
 	return nil, borges.ErrRepositoryNotExists.New(id)
 }
 
+// Repositories returns a RepositoryIterator that iterates through all the
+// repositories contained in all Location contained in this Library.
+func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
+	return util.NewLocationRepositoryIterator(mapLocationsToSlice(l.locs), mode), nil
+}
+
+func mapLocationsToSlice(m map[borges.LocationID]*Location) []borges.Location {
+	locs := make([]borges.Location, len(m))
+
+	var i int
+	for _, loc := range m {
+		locs[i] = loc
+		i++
+	}
+
+	return locs
+}
+
 // Location returns the a Location with the given ID, if exists, otherwise
 // ErrLocationNotExists is returned.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
@@ -149,6 +167,12 @@ func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
 	}
 
 	return loc, nil
+}
+
+// Locations returns a LocationIterator that iterates through all locations
+// contained in this Library.
+func (l *Library) Locations() (borges.LocationIterator, error) {
+	return util.NewLocationIterator(mapLocationsToSlice(l.locs)), nil
 }
 
 // Library returns the Library with the given LibraryID, if a library can't
@@ -162,16 +186,16 @@ func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 	return lib, nil
 }
 
-// Repositories returns a RepositoryIterator that iterates through all the
-// repositories contained in all Location contained in this Library.
-func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
-	locs := make([]borges.Location, len(l.locs))
+// Libraries returns a LibraryIterator that iterates through all libraries
+// contained in this Library.
+func (l *Library) Libraries() (borges.LibraryIterator, error) {
+	libs := make([]borges.Library, len(l.libs))
 
 	var i int
-	for _, loc := range l.locs {
-		locs[i] = loc
+	for _, lib := range l.libs {
+		libs[i] = lib
 		i++
 	}
 
-	return util.NewLocationRepositoryIterator(locs, mode), nil
+	return util.NewLibraryIterator(libs), nil
 }

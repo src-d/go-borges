@@ -108,11 +108,15 @@ type Library interface {
 	// Location returns the Location with the given LocationID, if a location
 	// can't be found ErrLocationNotExists is returned.
 	Location(LocationID) (Location, error)
+	// Locations returns a LocationIterator that iterates through all locations
+	// contained in this Library.
+	Locations() (LocationIterator, error)
 	// Library returns the Library with the given LibraryID, if a library can't
 	// be found ErrLibraryNotExists is returned.
 	Library(LibraryID) (Library, error)
-	//Libraries() (LibraryIter, error)
-	//Locations() (LocationIter, error)
+	// Libraries returns a LibraryIterator that iterates through all libraries
+	// contained in this Library.
+	Libraries() (LibraryIterator, error)
 }
 
 // LocationID represents a Location identifier.

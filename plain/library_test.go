@@ -154,6 +154,32 @@ func TestLibrary_Get_NotFound(t *testing.T) {
 	require.Nil(r)
 }
 
+func TestLibrary_Locations(t *testing.T) {
+	require := require.New(t)
+
+	lfoo, _ := NewLocation("foo", memfs.New(), nil)
+	lbar, _ := NewLocation("bar", memfs.New(), nil)
+
+	l := NewLibrary("foo")
+	l.AddLocation(lfoo)
+	l.AddLocation(lbar)
+
+	iter, err := l.Locations()
+	require.NoError(err)
+
+	var ids []borges.LocationID
+	err = iter.ForEach(func(r borges.Location) error {
+		ids = append(ids, r.ID())
+		return nil
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.LocationID{
+		"foo",
+		"bar",
+	})
+}
+
 func TestLibrary_Location(t *testing.T) {
 	require := require.New(t)
 
@@ -185,6 +211,29 @@ func TestLibrary_Library(t *testing.T) {
 	r, err := l.Library("bar")
 	require.NoError(err)
 	require.NotNil(r)
+}
+
+func TestLibrary_Libraries(t *testing.T) {
+	require := require.New(t)
+
+	l := NewLibrary("foo")
+	l.AddLibrary(NewLibrary("bar"))
+	l.AddLibrary(NewLibrary("qux"))
+
+	iter, err := l.Libraries()
+	require.NoError(err)
+
+	var ids []borges.LibraryID
+	err = iter.ForEach(func(r borges.Library) error {
+		ids = append(ids, r.ID())
+		return nil
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.LibraryID{
+		"bar",
+		"qux",
+	})
 }
 
 func TestLibrary_Library_NotFound(t *testing.T) {
