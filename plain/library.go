@@ -7,19 +7,33 @@ import (
 
 // Library represents a borges.Library implementation based on billy.Filesystems.
 type Library struct {
-	l map[borges.LocationID]*Location
+	id   borges.LibraryID
+	locs map[borges.LocationID]*Location
+	libs map[borges.LibraryID]*Library
 }
 
 // NewLibrary returns a new empty Library instance.
-func NewLibrary() *Library {
+func NewLibrary(id borges.LibraryID) *Library {
 	return &Library{
-		l: make(map[borges.LocationID]*Location, 0),
+		id:   id,
+		locs: make(map[borges.LocationID]*Location, 0),
+		libs: make(map[borges.LibraryID]*Library, 0),
 	}
 }
 
-// AddLocation adds a Location to the Library.
-func (l *Library) AddLocation(location *Location) {
-	l.l[location.ID()] = location
+// ID returns the borges.LibraryID for this Library.
+func (l *Library) ID() borges.LibraryID {
+	return l.id
+}
+
+// AddLocation adds a Location to this Library.
+func (l *Library) AddLocation(loc *Location) {
+	l.locs[loc.ID()] = loc
+}
+
+// AddLibrary adds a Library to this Library.
+func (l *Library) AddLibrary(lib *Library) {
+	l.libs[lib.ID()] = lib
 }
 
 // GetOrInit is not implemented. It honors the borges.Library interface.
@@ -32,28 +46,63 @@ func (l *Library) Init(borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
-// Has returns true and the LocationID if the given RepositoryID matches any
-// repository at any location belonging to this Library.
-func (l *Library) Has(id borges.RepositoryID) (bool, borges.LocationID, error) {
-	for _, loc := range l.l {
-		ok, err := loc.Has(id)
-		if err != nil {
-			return false, "", err
-		}
+// Has returns true, the LibraryID and the LocationID if the given RepositoryID
+// matches any repository at any location belonging to this Library.
+func (l *Library) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.LocationID, error) {
+	ok, loc, err := l.doHasOnLocations(id)
+	if ok || err != nil {
+		return ok, l.ID(), loc.ID(), err
+	}
 
-		if ok {
-			return true, loc.ID(), nil
+	ok, lib, loc, err := l.doHasOnLibraries(id)
+	return ok, lib.ID(), loc.ID(), err
+}
+
+func (l *Library) doHasOnLocations(id borges.RepositoryID) (bool, *Location, error) {
+	for _, loc := range l.locs {
+		ok, err := loc.Has(id)
+		if ok || err != nil {
+			return ok, loc, err
 		}
 	}
 
-	return false, ".", nil
+	return false, nil, nil
+}
+
+func (l *Library) doHasOnLibraries(id borges.RepositoryID) (bool, *Library, *Location, error) {
+	for _, lib := range l.libs {
+		ok, loc, err := lib.doHasOnLocations(id)
+		if ok || err != nil {
+			return ok, lib, loc, err
+		}
+
+		ok, lib, loc, err := lib.doHasOnLibraries(id)
+		if ok || err != nil {
+			return ok, lib, loc, err
+		}
+	}
+
+	return false, nil, nil, nil
 }
 
 // Get open a repository with the given RepositoryID, it itereates all the
 // library locations until this repository is found. If a repository with the
 // given RepositoryID can't be found the ErrRepositoryNotExists is returned.
 func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository, error) {
-	for _, loc := range l.l {
+	r, err := l.doGetOnLocations(id, m)
+	if r != nil && err == nil {
+		return r, nil
+	}
+
+	if err != nil && !borges.ErrRepositoryNotExists.Is(err) {
+		return r, err
+	}
+
+	return l.doGetOnLibraries(id, m)
+}
+
+func (l *Library) doGetOnLocations(id borges.RepositoryID, m borges.Mode) (borges.Repository, error) {
+	for _, loc := range l.locs {
 		ok, err := loc.Has(id)
 		if err != nil {
 			return nil, err
@@ -67,24 +116,59 @@ func (l *Library) Get(id borges.RepositoryID, m borges.Mode) (borges.Repository,
 	return nil, borges.ErrRepositoryNotExists.New(id)
 }
 
+func (l *Library) doGetOnLibraries(id borges.RepositoryID, m borges.Mode) (borges.Repository, error) {
+	for _, lib := range l.libs {
+		ok, loc, err := lib.doHasOnLocations(id)
+		if ok && err == nil {
+			return openRepository(loc, id, m)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		ok, _, loc, err = lib.doHasOnLibraries(id)
+		if ok && err == nil {
+			return openRepository(loc, id, m)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, borges.ErrRepositoryNotExists.New(id)
+}
+
 // Location returns the a Location with the given ID, if exists, otherwise
 // ErrLocationNotExists is returned.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
-	location, ok := l.l[id]
+	loc, ok := l.locs[id]
 	if !ok {
 		return nil, borges.ErrLocationNotExists.New(id)
 	}
 
-	return location, nil
+	return loc, nil
+}
+
+// Library returns the Library with the given LibraryID, if a library can't
+// be found ErrLibraryNotExists is returned.
+func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
+	lib, ok := l.libs[id]
+	if !ok {
+		return nil, borges.ErrLibraryNotExists.New(id)
+	}
+
+	return lib, nil
 }
 
 // Repositories returns a RepositoryIterator that iterates through all the
 // repositories contained in all Location contained in this Library.
 func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
-	locs := make([]borges.Location, len(l.l))
+	locs := make([]borges.Location, len(l.locs))
 
 	var i int
-	for _, loc := range l.l {
+	for _, loc := range l.locs {
 		locs[i] = loc
 		i++
 	}

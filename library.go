@@ -13,9 +13,43 @@ var (
 	ErrNotImplemented      = errors.NewKind("not implemented")
 	ErrModeNotSupported    = errors.NewKind("repository mode %q not supported")
 	ErrLocationNotExists   = errors.NewKind("location %s not exists")
+	ErrLibraryNotExists    = errors.NewKind("library %s not exists")
 	ErrRepositoryExists    = errors.NewKind("repository %s already exists")
 	ErrRepositoryNotExists = errors.NewKind("repository %s not exists")
 	ErrNonTransactional    = errors.NewKind("non transactional repository")
+)
+
+// RepositoryID represents a Repository identifier, these IDs regularly are
+// based on a http or git remore URL, but can be based on any other concept.
+type RepositoryID string
+
+// NewRepositoryID returns a new RepositoryID based on a given endpoint.
+// Eg.: git@github.com:src-d/go-borges becomes github.com/src-d/go-borges.git
+func NewRepositoryID(endpoint string) (RepositoryID, error) {
+	e, err := transport.NewEndpoint(endpoint)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.HasSuffix(e.Path, ".git") {
+		e.Path += ".git"
+	}
+
+	return RepositoryID(path.Join(e.Host, e.Path)), nil
+}
+
+func (id RepositoryID) String() string {
+	return string(id)
+}
+
+// Mode is the different modes to open a Repository.
+type Mode int
+
+const (
+	// RWMode allows to perform read and write operations over a repository.
+	RWMode Mode = iota
+	// ReadOnlyMode allows only read-only operations over a repository.
+	ReadOnlyMode
 )
 
 // Repository interface represents a git.Repository, with information about
@@ -39,12 +73,17 @@ type Repository interface {
 	R() *git.Repository
 }
 
-// Library interface represents a group of different location, it allows access
-// to any repository stored on any location. Also allows the iteration of the
-// locations to perform full scan operations. Library is the default entrypoint
-// for accessing the repositories, should be used when the Location is not
-// important.
+// LibraryID represents a Library identifier.
+type LibraryID string
+
+// Library interface represents a group of different libraries and locations,
+// it allows access to any repository stored on any library or location. Also
+// allows the iteration of the libraries and locations to perform full scan
+// operations. Library is the default entrypoint for accessing the repositories,
+// should be used when the Location is not important.
 type Library interface {
+	// ID returns the LibraryID for this Library.
+	ID() LibraryID
 	// Init initializes a new Repository in a Location, the choosen Location
 	// is dependant on the implementation, if this this not supported should
 	// return ErrNotImplemented. If a repository with the given RepositoryID
@@ -59,27 +98,22 @@ type Library interface {
 	// supported should return ErrNotImplemented. If the repository is opened
 	// this will be done in RWMode.
 	GetOrInit(RepositoryID) (Repository, error)
-	// Has returns true and the LocationID if the given RepositoryID matches any
-	// repository at any location belonging to this Library.
-	Has(RepositoryID) (bool, LocationID, error)
+	// Has returns true, the LibraryID and the LocationID if the given
+	// RepositoryID matches any repository at any location belonging to this
+	// Library.
+	Has(RepositoryID) (bool, LibraryID, LocationID, error)
 	// Repositories returns a RepositoryIterator that iterates through all
 	// the repositories contained in all Location contained in this Library.
 	Repositories(Mode) (RepositoryIterator, error)
 	// Location returns the Location with the given LocationID, if a location
 	// can't be found ErrLocationNotExists is returned.
 	Location(LocationID) (Location, error)
+	// Library returns the Library with the given LibraryID, if a library can't
+	// be found ErrLibraryNotExists is returned.
+	Library(LibraryID) (Library, error)
+	//Libraries() (LibraryIter, error)
 	//Locations() (LocationIter, error)
 }
-
-// Mode is the different modes to open a Repository.
-type Mode int
-
-const (
-	// RWMode allows to perform read and write operations over a repository.
-	RWMode Mode = iota
-	// ReadOnlyMode allows only read-only operations over a repository.
-	ReadOnlyMode
-)
 
 // LocationID represents a Location identifier.
 type LocationID string
@@ -106,27 +140,4 @@ type Location interface {
 	// Repositories returns a RepositoryIterator that iterates through all
 	// the repositories contained in this Location.
 	Repositories(Mode) (RepositoryIterator, error)
-}
-
-// RepositoryID represents a Repository identifier, these IDs regularly are
-// based on a http or git remore URL, but can be based on any other concept.
-type RepositoryID string
-
-// NewRepositoryID returns a new RepositoryID based on a given endpoint.
-// Eg.: git@github.com:src-d/go-borges becomes github.com/src-d/go-borges.git
-func NewRepositoryID(endpoint string) (RepositoryID, error) {
-	e, err := transport.NewEndpoint(endpoint)
-	if err != nil {
-		return "", err
-	}
-
-	if !strings.HasSuffix(e.Path, ".git") {
-		e.Path += ".git"
-	}
-
-	return RepositoryID(path.Join(e.Host, e.Path)), nil
-}
-
-func (id RepositoryID) String() string {
-	return string(id)
 }
