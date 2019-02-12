@@ -1,0 +1,17 @@
+language: go
+
+go:
+  - 1.11.x
+  - tip
+go_import_path: github.com/src-d/go-borges
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+script:
+  - cp Gopkg.testing.toml Gopkg.toml
+  - make godep
+  - make test-coverage
+  - make codecov
