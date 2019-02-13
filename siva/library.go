@@ -8,13 +8,8 @@ import (
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
-	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
-	"gopkg.in/src-d/go-billy.v4/memfs"
 	butil "gopkg.in/src-d/go-billy.v4/util"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 // Library represents a borges.Library implementation based on siva files.
@@ -128,18 +123,7 @@ func (l *Library) generateLocation(id borges.LocationID) (*Location, error) {
 		return nil, borges.ErrLocationNotExists.New(id)
 	}
 
-	sfs, err := sivafs.NewFilesystem(l.fs, path, memfs.New())
-	if err != nil {
-		return nil, err
-	}
-
-	sto := filesystem.NewStorage(sfs, cache.NewObjectLRUDefault())
-	repo, err := git.Open(sto, nil)
-	if err != nil {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
-	return &Location{id: id, repo: repo}, nil
+	return NewLocation(id, l, path)
 }
 
 // Locations implements borges.Library interface.

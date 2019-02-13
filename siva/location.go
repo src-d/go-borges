@@ -2,15 +2,40 @@ package siva
 
 import (
 	"io"
+	"os"
 
 	borges "github.com/src-d/go-borges"
-	git "gopkg.in/src-d/go-git.v4"
+	sivafs "gopkg.in/src-d/go-billy-siva.v4"
+	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-git.v4/config"
 )
 
+var _ borges.Location = new(Location)
+
+func NewLocation(
+	id borges.LocationID,
+	l *Library,
+	path string,
+) (*Location, error) {
+	_, err := l.fs.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, borges.ErrLocationNotExists.New(id)
+	}
+
+	sfs, err := sivafs.NewFilesystem(l.fs, path, memfs.New())
+	if err != nil {
+		return nil, err
+	}
+
+	return &Location{id: id, fs: sfs, library: l}, nil
+}
+
 type Location struct {
-	id   borges.LocationID
-	repo *git.Repository
+	id            borges.LocationID
+	fs            billy.Filesystem
+	transactional bool
+	library       *Library
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -28,17 +53,22 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
+	repo, err := NewRepository(id, l.fs, borges.RWMode, l)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &config.RemoteConfig{
 		Name: id.String(),
 		URLs: []string{id.String()},
 	}
 
-	_, err = l.repo.CreateRemote(cfg)
+	_, err = repo.R().CreateRemote(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewRepository(id, l.repo, borges.RWMode, l), nil
+	return repo, nil
 }
 
 func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
@@ -51,7 +81,7 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Reposit
 		return nil, borges.ErrRepositoryNotExists.New(id)
 	}
 
-	return l.repository(id, mode), nil
+	return l.repository(id, mode)
 }
 
 func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) {
@@ -61,14 +91,18 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 	}
 
 	if has {
-		return l.repository(id, borges.RWMode), nil
+		return l.repository(id, borges.RWMode)
 	}
 
 	return l.Init(id)
 }
 
 func (l *Location) Has(name borges.RepositoryID) (bool, error) {
-	config, err := l.repo.Config()
+	repo, err := l.repository("", borges.ReadOnlyMode)
+	if err != nil {
+		return false, err
+	}
+	config, err := repo.R().Config()
 	if err != nil {
 		return false, err
 	}
@@ -88,7 +122,11 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
 	var remotes []*config.RemoteConfig
 
-	cfg, err := l.repo.Config()
+	repo, err := l.repository("", borges.ReadOnlyMode)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := repo.R().Config()
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +146,8 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
-) borges.Repository {
-	return NewRepository(id, l.repo, mode, l)
+) (borges.Repository, error) {
+	return NewRepository(id, l.fs, mode, l)
 }
 
 type repositoryIterator struct {
@@ -133,7 +171,7 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 		}
 
 		id := toRepoID(r.URLs[0])
-		return NewRepository(id, i.l.repo, i.mode, i.l), nil
+		return NewRepository(id, i.l.fs, i.mode, i.l)
 	}
 }
 
