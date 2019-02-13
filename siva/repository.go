@@ -5,7 +5,15 @@ import (
 	git "gopkg.in/src-d/go-git.v4"
 )
 
-var _ borges.Repository = new(Repository)
+type Repository struct {
+	id   borges.RepositoryID
+	repo *git.Repository
+	mode borges.Mode
+
+	location *Location
+}
+
+var _ borges.Repository = (*Repository)(nil)
 
 func NewRepository(
 	id borges.RepositoryID,
@@ -21,14 +29,6 @@ func NewRepository(
 	}
 }
 
-type Repository struct {
-	id   borges.RepositoryID
-	repo *git.Repository
-	mode borges.Mode
-
-	location *Location
-}
-
 func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
@@ -42,11 +42,11 @@ func (r *Repository) Mode() borges.Mode {
 }
 
 func (r *Repository) Commit() error {
-	panic("not implemented")
+	return borges.ErrNotImplemented.New()
 }
 
 func (r *Repository) Close() error {
-	panic("not implemented")
+	return borges.ErrNotImplemented.New()
 }
 
 func (r *Repository) R() *git.Repository {
