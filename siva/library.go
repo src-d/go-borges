@@ -3,15 +3,27 @@ package siva
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
+	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	butil "gopkg.in/src-d/go-billy.v4/util"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
-var _ borges.Library = new(Library)
+// Library represents a borges.Library implementation based on siva files.
+type Library struct {
+	id borges.LibraryID
+	fs billy.Filesystem
+}
+
+var _ borges.Library = (*Library)(nil)
 
 // NewLibrary creates a new siva.Library.
 func NewLibrary(id string, fs billy.Filesystem) *Library {
@@ -21,39 +33,47 @@ func NewLibrary(id string, fs billy.Filesystem) *Library {
 	}
 }
 
-// Library represents a borges.Library implementation based on siva files.
-type Library struct {
-	id borges.LibraryID
-	fs billy.Filesystem
-}
-
 // ID implements borges.Library interface.
 func (l *Library) ID() borges.LibraryID {
-	panic("not implemented")
+	return l.id
 }
 
 // Init implements borges.Library interface.
 func (l *Library) Init(borges.RepositoryID) (borges.Repository, error) {
-	panic("not implemented")
+	return nil, borges.ErrNotImplemented.New()
 }
 
 // Get implements borges.Library interface.
-func (l *Library) Get(borges.RepositoryID, borges.Mode) (borges.Repository, error) {
-	panic("not implemented")
+func (l *Library) Get(repoID borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+	ok, _, locID, err := l.Has(repoID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, borges.ErrRepositoryNotExists.New(repoID)
+	}
+
+	loc, err := l.Location(locID)
+	if err != nil {
+		return nil, err
+	}
+
+	return loc.Get(repoID, mode)
 }
 
 // GetOrInit implements borges.Library interface.
 func (l *Library) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
-	panic("not implemented")
+	return nil, borges.ErrNotImplemented.New()
 }
 
 // TODO: find if we have to use ".git" suffix for repository ids
-func repoID(endpoint string) borges.RepositoryID {
+func toRepoID(endpoint string) borges.RepositoryID {
 	name, _ := borges.NewRepositoryID(endpoint)
 	return borges.RepositoryID(strings.TrimSuffix(name.String(), ".git"))
 }
 
-func locationID(file string) borges.LocationID {
+func toLocID(file string) borges.LocationID {
 	id := strings.TrimSuffix(file, ".siva")
 	return borges.LocationID(id)
 }
@@ -92,13 +112,44 @@ func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, err
 	if err != nil {
 		return nil, err
 	}
+
 	return util.NewLocationRepositoryIterator(locs, mode), nil
 }
 
 // Location implements borges.Library interface.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
+	return l.generateLocation(id)
+}
+
+func (l *Library) generateLocation(id borges.LocationID) (*Location, error) {
 	path := fmt.Sprintf("%s.siva", id)
-	return NewLocation(id, l.fs, path)
+	_, err := l.fs.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, borges.ErrLocationNotExists.New(id)
+	}
+
+	sfs, err := sivafs.NewFilesystem(l.fs, path, memfs.New())
+	if err != nil {
+		return nil, err
+	}
+
+	sto := filesystem.NewStorage(sfs, cache.NewObjectLRUDefault())
+	repo, err := git.Open(sto, nil)
+	if err != nil {
+		return nil, borges.ErrLocationNotExists.New(id)
+	}
+
+	return &Location{id: id, repo: repo}, nil
+}
+
+// Locations implements borges.Library interface.
+func (l *Library) Locations() (borges.LocationIterator, error) {
+	locs, err := l.locations()
+	if err != nil {
+		return nil, err
+	}
+
+	return util.NewLocationIterator(locs), nil
 }
 
 func (l *Library) locations() ([]borges.Location, error) {
@@ -110,7 +161,7 @@ func (l *Library) locations() ([]borges.Location, error) {
 	}
 
 	for _, s := range sivas {
-		loc, err := NewLocation(locationID(s), l.fs, s)
+		loc, err := l.generateLocation(toLocID(s))
 		if err != nil {
 			continue
 		}
@@ -121,21 +172,17 @@ func (l *Library) locations() ([]borges.Location, error) {
 	return locs, nil
 }
 
-// Locations implements borges.Library interface.
-func (l *Library) Locations() (borges.LocationIterator, error) {
-	locs, err := l.locations()
-	if err != nil {
-		return nil, err
-	}
-	return util.NewLocationIterator(locs), nil
-}
-
 // Library implements borges.Library interface.
-func (l *Library) Library(borges.LibraryID) (borges.Library, error) {
-	panic("not implemented")
+func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
+	if id == l.id {
+		return l, nil
+	}
+
+	return nil, borges.ErrLibraryNotExists.New(id)
 }
 
 // Libraries implements borges.Library interface.
 func (l *Library) Libraries() (borges.LibraryIterator, error) {
-	panic("not implemented")
+	libs := []borges.Library{l}
+	return util.NewLibraryIterator(libs), nil
 }

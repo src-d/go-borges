@@ -2,48 +2,18 @@ package siva
 
 import (
 	"io"
-	"os"
 
 	borges "github.com/src-d/go-borges"
-	sivafs "gopkg.in/src-d/go-billy-siva.v4"
-	billy "gopkg.in/src-d/go-billy.v4"
-	"gopkg.in/src-d/go-billy.v4/memfs"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
-
-var _ borges.Location = new(Location)
-
-func NewLocation(
-	id borges.LocationID,
-	fs billy.Filesystem,
-	path string,
-) (*Location, error) {
-	_, err := fs.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
-	sfs, err := sivafs.NewFilesystem(fs, path, memfs.New())
-	if err != nil {
-		return nil, err
-	}
-
-	sto := filesystem.NewStorage(sfs, cache.NewObjectLRUDefault())
-	repo, err := git.Open(sto, nil)
-	if err != nil {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
-	return &Location{id: id, repo: repo}, nil
-}
 
 type Location struct {
 	id   borges.LocationID
 	repo *git.Repository
 }
+
+var _ borges.Location = (*Location)(nil)
 
 func (l *Location) ID() borges.LocationID {
 	return l.id
@@ -105,7 +75,7 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 
 	for _, r := range config.Remotes {
 		if len(r.URLs) > 0 {
-			id := repoID(r.URLs[0])
+			id := toRepoID(r.URLs[0])
 			if id == name {
 				return true, nil
 			}
@@ -162,7 +132,7 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 			continue
 		}
 
-		id := repoID(r.URLs[0])
+		id := toRepoID(r.URLs[0])
 		return NewRepository(id, i.l.repo, i.mode, i.l), nil
 	}
 }
