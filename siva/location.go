@@ -2,7 +2,6 @@ package siva
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 
@@ -22,13 +21,18 @@ var (
 	// ErrMalformedData when checkpoint data is invalid.
 	ErrMalformedData = errors.NewKind("malformed data")
 )
-var _ borges.Location = new(Location)
 
-func NewLocation(
-	id borges.LocationID,
-	l *Library,
-	path string,
-) (*Location, error) {
+type Location struct {
+	id            borges.LocationID
+	path          string
+	cachedFS      billy.Filesystem
+	transactional bool
+	library       *Library
+}
+
+var _ borges.Location = (*Location)(nil)
+
+func NewLocation(id borges.LocationID, l *Library, path string) (*Location, error) {
 	err := fixSiva(l.fs, path)
 	if err != nil {
 		return nil, err
@@ -52,16 +56,6 @@ func NewLocation(
 
 	return location, nil
 }
-
-type Location struct {
-	id            borges.LocationID
-	path          string
-	cachedFS      billy.Filesystem
-	transactional bool
-	library       *Library
-}
-
-var _ borges.Location = (*Location)(nil)
 
 // fixSiva searches for a file named path.checkpoint. If it's found it truncates
 // the siva file to the size written in it.
@@ -278,53 +272,4 @@ func (l *Location) repository(
 	}
 
 	return NewRepository(id, fs, mode, l)
-}
-
-type repositoryIterator struct {
-	mode    borges.Mode
-	l       *Location
-	pos     int
-	remotes []*config.RemoteConfig
-}
-
-func (i *repositoryIterator) Next() (borges.Repository, error) {
-	for {
-		if i.pos >= len(i.remotes) {
-			return nil, io.EOF
-		}
-
-		r := i.remotes[i.pos]
-		i.pos++
-
-		if len(r.URLs) == 0 {
-			continue
-		}
-
-		fs, err := i.l.FS()
-		if err != nil {
-			return nil, err
-		}
-
-		id := toRepoID(r.URLs[0])
-		return NewRepository(id, fs, i.mode, i.l)
-	}
-}
-
-func (i *repositoryIterator) Close() {}
-
-func (i *repositoryIterator) ForEach(f func(borges.Repository) error) error {
-	for {
-		r, err := i.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		err = f(r)
-		if err != nil {
-			return err
-		}
-	}
 }
