@@ -2,9 +2,10 @@ package siva
 
 import (
 	borges "github.com/src-d/go-borges"
-	"github.com/src-d/go-borges/util"
 	billy "gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 type Repository struct {
@@ -24,14 +25,10 @@ func NewRepository(
 	m borges.Mode,
 	l *Location,
 ) (*Repository, error) {
-	sto, _, err := util.RepositoryStorer(fs, l.library.fs, m, l.transactional)
-	if err != nil {
-		return nil, err
-	}
-
+	sto := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
 	repo, err := git.Open(sto, nil)
 	if err != nil {
-		return nil, err
+		return nil, borges.ErrLocationNotExists.New(id)
 	}
 
 	return &Repository{

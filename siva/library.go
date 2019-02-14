@@ -3,7 +3,6 @@ package siva
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	borges "github.com/src-d/go-borges"
@@ -113,16 +112,7 @@ func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, err
 
 // Location implements borges.Library interface.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
-	return l.generateLocation(id)
-}
-
-func (l *Library) generateLocation(id borges.LocationID) (*Location, error) {
 	path := fmt.Sprintf("%s.siva", id)
-	_, err := l.fs.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
 	return NewLocation(id, l, path)
 }
 
@@ -145,7 +135,7 @@ func (l *Library) locations() ([]borges.Location, error) {
 	}
 
 	for _, s := range sivas {
-		loc, err := l.generateLocation(toLocID(s))
+		loc, err := l.Location(toLocID(s))
 		if err != nil {
 			continue
 		}
