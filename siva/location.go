@@ -1,16 +1,27 @@
 package siva
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	borges "github.com/src-d/go-borges"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
 )
 
+var (
+	// ErrCannotUseCheckpointFile is returned on checkpoint problems.
+	ErrCannotUseCheckpointFile = errors.NewKind("cannot use checkpoint file: %s")
+	// ErrCannotUseSivaFile is returned on siva problems.
+	ErrCannotUseSivaFile = errors.NewKind("cannot use siva file: %s")
+	// ErrMalformedData when checkpoint data is invalid.
+	ErrMalformedData = errors.NewKind("malformed data")
+)
 var _ borges.Location = new(Location)
 
 func NewLocation(
@@ -18,27 +29,136 @@ func NewLocation(
 	l *Library,
 	path string,
 ) (*Location, error) {
-	_, err := l.fs.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
-	sfs, err := sivafs.NewFilesystem(l.fs, path, memfs.New())
+	err := fixSiva(l.fs, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Location{id: id, fs: sfs, library: l}, nil
+	_, err = l.fs.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, borges.ErrLocationNotExists.New(id)
+	}
+
+	location := &Location{
+		id:      id,
+		path:    path,
+		library: l,
+	}
+
+	_, err = location.FS()
+	if err != nil {
+		return nil, err
+	}
+
+	return location, nil
 }
 
 type Location struct {
 	id            borges.LocationID
-	fs            billy.Filesystem
+	path          string
+	cachedFS      billy.Filesystem
 	transactional bool
 	library       *Library
 }
 
 var _ borges.Location = (*Location)(nil)
+
+// fixSiva searches for a file named path.checkpoint. If it's found it truncates
+// the siva file to the size written in it.
+func fixSiva(fs billy.Filesystem, path string) error {
+	checkpointPath := fmt.Sprintf("%s.checkpoint", path)
+
+	checkErr := func(err error) error {
+		return ErrCannotUseCheckpointFile.Wrap(err, checkpointPath)
+	}
+	sivaErr := func(err error) error {
+		return ErrCannotUseSivaFile.Wrap(err, path)
+	}
+
+	cf, err := fs.Open(checkpointPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return checkErr(err)
+	}
+	defer cf.Close()
+
+	// there's a checkpoint file we can use to fix the siva file
+
+	sf, err := fs.Open(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return sivaErr(err)
+		}
+
+		// there's checkpoint but not siva file, delete checkpoint
+		err = cf.Close()
+		if err != nil {
+			return checkErr(err)
+		}
+
+		err = fs.Remove(checkpointPath)
+		if err != nil {
+			return checkErr(err)
+		}
+
+		return nil
+	}
+	defer sf.Close()
+
+	// the biggest 64 bit number in decimal ASCII is 19 characters
+	data := make([]byte, 32)
+	n, err := cf.Read(data)
+	if err != nil {
+		return checkErr(err)
+	}
+
+	size, err := strconv.ParseInt(string(data[:n]), 10, 64)
+	if err != nil {
+		return checkErr(err)
+	}
+	if size < 0 {
+		return checkErr(ErrMalformedData.New())
+	}
+
+	err = sf.Truncate(size)
+	if err != nil {
+		return sivaErr(err)
+	}
+
+	err = cf.Close()
+	if err != nil {
+		return checkErr(err)
+	}
+
+	err = fs.Remove(checkpointPath)
+	if err != nil {
+		return checkErr(err)
+	}
+
+	return nil
+}
+
+// FS returns a filesystem for the location's siva file.
+func (l *Location) FS() (billy.Filesystem, error) {
+	if l.cachedFS != nil {
+		return l.cachedFS, nil
+	}
+
+	err := fixSiva(l.library.fs, l.path)
+	if err != nil {
+		return nil, err
+	}
+
+	sfs, err := sivafs.NewFilesystem(l.library.fs, l.path, memfs.New())
+	if err != nil {
+		return nil, err
+	}
+
+	l.cachedFS = sfs
+	return sfs, nil
+}
 
 func (l *Location) ID() borges.LocationID {
 	return l.id
@@ -53,7 +173,12 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
-	repo, err := NewRepository(id, l.fs, borges.RWMode, l)
+	fs, err := l.FS()
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := NewRepository(id, fs, borges.RWMode, l)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +272,12 @@ func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
-	return NewRepository(id, l.fs, mode, l)
+	fs, err := l.FS()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRepository(id, fs, mode, l)
 }
 
 type repositoryIterator struct {
@@ -170,8 +300,13 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 			continue
 		}
 
+		fs, err := i.l.FS()
+		if err != nil {
+			return nil, err
+		}
+
 		id := toRepoID(r.URLs[0])
-		return NewRepository(id, i.l.fs, i.mode, i.l)
+		return NewRepository(id, fs, i.mode, i.l)
 	}
 }
 
