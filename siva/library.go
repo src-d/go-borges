@@ -13,17 +13,19 @@ import (
 
 // Library represents a borges.Library implementation based on siva files.
 type Library struct {
-	id borges.LibraryID
-	fs billy.Filesystem
+	id            borges.LibraryID
+	fs            billy.Filesystem
+	transactional bool
 }
 
 var _ borges.Library = (*Library)(nil)
 
 // NewLibrary creates a new siva.Library.
-func NewLibrary(id string, fs billy.Filesystem) *Library {
+func NewLibrary(id string, fs billy.Filesystem, transactional bool) *Library {
 	return &Library{
-		id: borges.LibraryID(id),
-		fs: fs,
+		id:            borges.LibraryID(id),
+		fs:            fs,
+		transactional: transactional,
 	}
 }
 

@@ -2,7 +2,8 @@ package siva
 
 import (
 	borges "github.com/src-d/go-borges"
-	billy "gopkg.in/src-d/go-billy.v4"
+
+	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
@@ -11,7 +12,7 @@ import (
 type Repository struct {
 	id   borges.RepositoryID
 	repo *git.Repository
-	fs   billy.Filesystem
+	fs   sivafs.SivaFS
 	mode borges.Mode
 
 	location *Location
@@ -21,7 +22,7 @@ var _ borges.Repository = (*Repository)(nil)
 
 func NewRepository(
 	id borges.RepositoryID,
-	fs billy.Filesystem,
+	fs sivafs.SivaFS,
 	m borges.Mode,
 	l *Location,
 ) (*Repository, error) {
@@ -53,11 +54,21 @@ func (r *Repository) Mode() borges.Mode {
 }
 
 func (r *Repository) Commit() error {
-	return borges.ErrNotImplemented.New()
+	err := r.fs.Sync()
+	if err != nil {
+		return err
+	}
+
+	return r.location.Commit()
 }
 
 func (r *Repository) Close() error {
-	return borges.ErrNotImplemented.New()
+	err := r.fs.Sync()
+	if err != nil {
+		return err
+	}
+
+	return r.location.Rollback()
 }
 
 func (r *Repository) R() *git.Repository {

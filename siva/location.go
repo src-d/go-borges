@@ -9,6 +9,7 @@ import (
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-billy.v4/util"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
 )
@@ -20,14 +21,21 @@ var (
 	ErrCannotUseSivaFile = errors.NewKind("cannot use siva file: %s")
 	// ErrMalformedData when checkpoint data is invalid.
 	ErrMalformedData = errors.NewKind("malformed data")
+	// ErrTransactioning is returned when a second transaction wants to start
+	// in the same location.
+	ErrTransactioning = errors.NewKind("already doing a transaction")
 )
 
 type Location struct {
-	id            borges.LocationID
-	path          string
-	cachedFS      billy.Filesystem
-	transactional bool
-	library       *Library
+	id   borges.LocationID
+	path string
+	// cachedFS billy.Filesystem
+	cachedFS sivafs.SivaFS
+	library  *Library
+
+	// last good position
+	checkpoint     int64
+	transactioning bool
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -134,18 +142,22 @@ func fixSiva(fs billy.Filesystem, path string) error {
 	return nil
 }
 
+func (l *Location) newFS() (sivafs.SivaFS, error) {
+	return sivafs.NewFilesystem(l.baseFS(), l.path, memfs.New())
+}
+
 // FS returns a filesystem for the location's siva file.
-func (l *Location) FS() (billy.Filesystem, error) {
+func (l *Location) FS() (sivafs.SivaFS, error) {
 	if l.cachedFS != nil {
 		return l.cachedFS, nil
 	}
 
-	err := fixSiva(l.library.fs, l.path)
+	err := fixSiva(l.baseFS(), l.path)
 	if err != nil {
 		return nil, err
 	}
 
-	sfs, err := sivafs.NewFilesystem(l.library.fs, l.path, memfs.New())
+	sfs, err := l.newFS()
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +274,113 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 	}, nil
 }
 
+func (l *Location) transactional() bool {
+	return l.library.transactional
+}
+
+func (l *Location) baseFS() billy.Filesystem {
+	return l.library.fs
+}
+
+func (l *Location) setupTransaction(mode borges.Mode) (sivafs.SivaFS, error) {
+	if !l.transactional() || mode != borges.RWMode {
+		return l.FS()
+	}
+
+	if l.transactioning {
+		return nil, ErrTransactioning.New()
+	}
+
+	fs, err := l.newFS()
+	if err != nil {
+		return nil, err
+	}
+
+	size, err := l.writeCheckpoint()
+	if err != nil {
+		return nil, err
+	}
+
+	l.checkpoint = size
+	l.transactioning = true
+
+	return fs, nil
+}
+
+func (l *Location) checkpointPath() string {
+	return fmt.Sprintf("%s.checkpoint", l.path)
+}
+
+func (l *Location) deleteCheckpoint() error {
+	return l.baseFS().Remove(l.checkpointPath())
+}
+
+func (l *Location) writeCheckpoint() (int64, error) {
+	var size int64
+	s, err := l.baseFS().Stat(l.path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return 0, err
+		}
+	} else {
+		size = s.Size()
+	}
+
+	str := strconv.FormatInt(size, 64)
+	err = util.WriteFile(l.baseFS(), l.checkpointPath(), []byte(str), 0664)
+	if err != nil {
+		return 0, err
+	}
+
+	return size, nil
+}
+
+func (l *Location) Commit() error {
+	if !l.transactional() || !l.transactioning {
+		return nil
+	}
+
+	l.checkpoint = 0
+	l.transactioning = false
+	l.cachedFS = nil
+
+	return l.deleteCheckpoint()
+}
+
+func (l *Location) Rollback() error {
+	if !l.transactional() || !l.transactioning {
+		return nil
+	}
+
+	if l.checkpoint > 0 {
+		f, err := l.baseFS().Open(l.path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		err = f.Truncate(l.checkpoint)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := l.baseFS().Remove(l.path)
+		if err != nil {
+			return err
+		}
+	}
+
+	l.checkpoint = 0
+	l.transactioning = false
+	l.cachedFS = nil
+
+	return l.deleteCheckpoint()
+}
+
 func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
-	fs, err := l.FS()
+	fs, err := l.setupTransaction(mode)
 	if err != nil {
 		return nil, err
 	}
