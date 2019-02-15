@@ -14,7 +14,7 @@ func TestLibrary(t *testing.T) {
 	fs := osfs.New("../_testdata/siva")
 
 	s.LibrarySingle = func() borges.Library {
-		return NewLibrary("foo", fs)
+		return NewLibrary("foo", fs, false)
 	}
 
 	suite.Run(t, s)
