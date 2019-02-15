@@ -326,7 +326,7 @@ func (l *Location) writeCheckpoint() (int64, error) {
 		size = s.Size()
 	}
 
-	str := strconv.FormatInt(size, 64)
+	str := strconv.FormatInt(size, 10)
 	err = util.WriteFile(l.baseFS(), l.checkpointPath(), []byte(str), 0664)
 	if err != nil {
 		return 0, err
