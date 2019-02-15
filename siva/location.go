@@ -1,6 +1,8 @@
 package siva
 
 import (
+	"time"
+
 	borges "github.com/src-d/go-borges"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
@@ -12,9 +14,9 @@ import (
 var (
 	// ErrMalformedData when checkpoint data is invalid.
 	ErrMalformedData = errors.NewKind("malformed data")
-	// ErrTransactioning is returned when a second transaction wants to start
-	// in the same location.
-	ErrTransactioning = errors.NewKind("already doing a transaction")
+	// ErrTransactionTimeout is returned when a repository can't
+	// be retrieved in transactional mode because of a timeout.
+	ErrTransactionTimeout = errors.NewKind("timeout exceeded: unable toretrieve repository %s in transactional mode.")
 )
 
 type Location struct {
@@ -25,11 +27,35 @@ type Location struct {
 	library  *Library
 
 	// last good position
-	checkpoint     *Checkpoint
-	transactioning bool
+	checkpoint *Checkpoint
+	tx         *repoTxer
 }
 
 var _ borges.Location = (*Location)(nil)
+
+const txTimeout = 60 * time.Second
+
+type repoTxer struct {
+	notification chan struct{}
+	timeout      time.Duration
+}
+
+func newRepoTxer() *repoTxer {
+	n := make(chan struct{}, 1)
+	n <- struct{}{}
+	return &repoTxer{n, txTimeout}
+}
+
+func (rtx *repoTxer) Start(id borges.RepositoryID) error {
+	select {
+	case <-rtx.notification:
+		return nil
+	case <-time.After(rtx.timeout):
+		return ErrTransactionTimeout.New(id)
+	}
+}
+
+func (rtx *repoTxer) Stop() { rtx.notification <- struct{}{} }
 
 func NewLocation(id borges.LocationID, l *Library, path string) (*Location, error) {
 	checkpoint, err := NewCheckpoint(l.fs, path)
@@ -49,6 +75,7 @@ func NewLocation(id borges.LocationID, l *Library, path string) (*Location, erro
 		return nil, err
 	}
 
+	location.tx = newRepoTxer()
 	return location, nil
 }
 
@@ -183,21 +210,17 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 	}, nil
 }
 
-func (l *Location) transactional() bool {
-	return l.library.transactional
-}
-
 func (l *Location) baseFS() billy.Filesystem {
 	return l.library.fs
 }
 
-func (l *Location) setupTransaction(mode borges.Mode) (sivafs.SivaFS, error) {
-	if !l.transactional() || mode != borges.RWMode {
+func (l *Location) getRepoFs(id borges.RepositoryID, mode borges.Mode) (sivafs.SivaFS, error) {
+	if !l.library.transactional || mode != borges.RWMode {
 		return l.FS()
 	}
 
-	if l.transactioning {
-		return nil, ErrTransactioning.New()
+	if err := l.tx.Start(id); err != nil {
+		return nil, err
 	}
 
 	fs, err := l.newFS()
@@ -209,34 +232,33 @@ func (l *Location) setupTransaction(mode borges.Mode) (sivafs.SivaFS, error) {
 		return nil, err
 	}
 
-	l.transactioning = true
 	return fs, nil
 }
 
-func (l *Location) Commit() error {
-	if !l.transactional() || !l.transactioning {
+func (l *Location) Commit(mode borges.Mode) error {
+	if !l.library.transactional || mode != borges.RWMode {
 		return nil
 	}
 
+	defer l.tx.Stop()
 	if err := l.checkpoint.Reset(); err != nil {
 		return err
 	}
 
-	l.transactioning = false
 	l.cachedFS = nil
 	return nil
 }
 
-func (l *Location) Rollback() error {
-	if !l.transactional() || !l.transactioning {
+func (l *Location) Rollback(mode borges.Mode) error {
+	if !l.library.transactional || mode != borges.RWMode {
 		return nil
 	}
 
+	defer l.tx.Stop()
 	if err := l.checkpoint.Apply(); err != nil {
 		return err
 	}
 
-	l.transactioning = false
 	l.cachedFS = nil
 	return nil
 }
@@ -245,7 +267,7 @@ func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
-	fs, err := l.setupTransaction(mode)
+	fs, err := l.getRepoFs(id, mode)
 	if err != nil {
 		return nil, err
 	}

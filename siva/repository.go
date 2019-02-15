@@ -59,7 +59,7 @@ func (r *Repository) Commit() error {
 		return err
 	}
 
-	return r.location.Commit()
+	return r.location.Commit(r.mode)
 }
 
 func (r *Repository) Close() error {
@@ -68,7 +68,7 @@ func (r *Repository) Close() error {
 		return err
 	}
 
-	return r.location.Rollback()
+	return r.location.Rollback(r.mode)
 }
 
 func (r *Repository) R() *git.Repository {
