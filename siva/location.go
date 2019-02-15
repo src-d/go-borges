@@ -1,24 +1,15 @@
 package siva
 
 import (
-	"fmt"
-	"os"
-	"strconv"
-
 	borges "github.com/src-d/go-borges"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
-	"gopkg.in/src-d/go-billy.v4/util"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
 )
 
 var (
-	// ErrCannotUseCheckpointFile is returned on checkpoint problems.
-	ErrCannotUseCheckpointFile = errors.NewKind("cannot use checkpoint file: %s")
-	// ErrCannotUseSivaFile is returned on siva problems.
-	ErrCannotUseSivaFile = errors.NewKind("cannot use siva file: %s")
 	// ErrMalformedData when checkpoint data is invalid.
 	ErrMalformedData = errors.NewKind("malformed data")
 	// ErrTransactioning is returned when a second transaction wants to start
@@ -34,27 +25,23 @@ type Location struct {
 	library  *Library
 
 	// last good position
-	checkpoint     int64
+	checkpoint     *Checkpoint
 	transactioning bool
 }
 
 var _ borges.Location = (*Location)(nil)
 
 func NewLocation(id borges.LocationID, l *Library, path string) (*Location, error) {
-	err := fixSiva(l.fs, path)
+	checkpoint, err := NewCheckpoint(l.fs, path)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = l.fs.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
 	location := &Location{
-		id:      id,
-		path:    path,
-		library: l,
+		id:         id,
+		path:       path,
+		library:    l,
+		checkpoint: checkpoint,
 	}
 
 	_, err = location.FS()
@@ -63,83 +50,6 @@ func NewLocation(id borges.LocationID, l *Library, path string) (*Location, erro
 	}
 
 	return location, nil
-}
-
-// fixSiva searches for a file named path.checkpoint. If it's found it truncates
-// the siva file to the size written in it.
-func fixSiva(fs billy.Filesystem, path string) error {
-	checkpointPath := fmt.Sprintf("%s.checkpoint", path)
-
-	checkErr := func(err error) error {
-		return ErrCannotUseCheckpointFile.Wrap(err, checkpointPath)
-	}
-	sivaErr := func(err error) error {
-		return ErrCannotUseSivaFile.Wrap(err, path)
-	}
-
-	cf, err := fs.Open(checkpointPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return checkErr(err)
-	}
-	defer cf.Close()
-
-	// there's a checkpoint file we can use to fix the siva file
-
-	sf, err := fs.Open(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return sivaErr(err)
-		}
-
-		// there's checkpoint but not siva file, delete checkpoint
-		err = cf.Close()
-		if err != nil {
-			return checkErr(err)
-		}
-
-		err = fs.Remove(checkpointPath)
-		if err != nil {
-			return checkErr(err)
-		}
-
-		return nil
-	}
-	defer sf.Close()
-
-	// the biggest 64 bit number in decimal ASCII is 19 characters
-	data := make([]byte, 32)
-	n, err := cf.Read(data)
-	if err != nil {
-		return checkErr(err)
-	}
-
-	size, err := strconv.ParseInt(string(data[:n]), 10, 64)
-	if err != nil {
-		return checkErr(err)
-	}
-	if size < 0 {
-		return checkErr(ErrMalformedData.New())
-	}
-
-	err = sf.Truncate(size)
-	if err != nil {
-		return sivaErr(err)
-	}
-
-	err = cf.Close()
-	if err != nil {
-		return checkErr(err)
-	}
-
-	err = fs.Remove(checkpointPath)
-	if err != nil {
-		return checkErr(err)
-	}
-
-	return nil
 }
 
 func (l *Location) newFS() (sivafs.SivaFS, error) {
@@ -152,8 +62,7 @@ func (l *Location) FS() (sivafs.SivaFS, error) {
 		return l.cachedFS, nil
 	}
 
-	err := fixSiva(l.baseFS(), l.path)
-	if err != nil {
+	if err := l.checkpoint.Apply(); err != nil {
 		return nil, err
 	}
 
@@ -296,43 +205,12 @@ func (l *Location) setupTransaction(mode borges.Mode) (sivafs.SivaFS, error) {
 		return nil, err
 	}
 
-	size, err := l.writeCheckpoint()
-	if err != nil {
+	if err := l.checkpoint.Save(); err != nil {
 		return nil, err
 	}
 
-	l.checkpoint = size
 	l.transactioning = true
-
 	return fs, nil
-}
-
-func (l *Location) checkpointPath() string {
-	return fmt.Sprintf("%s.checkpoint", l.path)
-}
-
-func (l *Location) deleteCheckpoint() error {
-	return l.baseFS().Remove(l.checkpointPath())
-}
-
-func (l *Location) writeCheckpoint() (int64, error) {
-	var size int64
-	s, err := l.baseFS().Stat(l.path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return 0, err
-		}
-	} else {
-		size = s.Size()
-	}
-
-	str := strconv.FormatInt(size, 10)
-	err = util.WriteFile(l.baseFS(), l.checkpointPath(), []byte(str), 0664)
-	if err != nil {
-		return 0, err
-	}
-
-	return size, nil
 }
 
 func (l *Location) Commit() error {
@@ -340,11 +218,13 @@ func (l *Location) Commit() error {
 		return nil
 	}
 
-	l.checkpoint = 0
+	if err := l.checkpoint.Reset(); err != nil {
+		return err
+	}
+
 	l.transactioning = false
 	l.cachedFS = nil
-
-	return l.deleteCheckpoint()
+	return nil
 }
 
 func (l *Location) Rollback() error {
@@ -352,28 +232,13 @@ func (l *Location) Rollback() error {
 		return nil
 	}
 
-	if l.checkpoint > 0 {
-		f, err := l.baseFS().Open(l.path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		err = f.Truncate(l.checkpoint)
-		if err != nil {
-			return err
-		}
-	} else {
-		err := l.baseFS().Remove(l.path)
-		if err != nil {
-			return err
-		}
+	if err := l.checkpoint.Apply(); err != nil {
+		return err
 	}
 
-	l.checkpoint = 0
 	l.transactioning = false
 	l.cachedFS = nil
-
-	return l.deleteCheckpoint()
+	return nil
 }
 
 func (l *Location) repository(
