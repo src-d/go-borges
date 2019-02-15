@@ -15,7 +15,7 @@ func TestLibrary(t *testing.T) {
 	fs := osfs.New("../_testdata/siva")
 
 	s.LibrarySingle = func() borges.Library {
-		lib, err := NewLibrary("foo", fs, false)
+		lib, err := NewLibrary("foo", fs, LibraryOptions{})
 		require.NoError(t, err)
 
 		return lib

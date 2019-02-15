@@ -9,9 +9,14 @@ import (
 )
 
 func newLocationRegistry(cacheSize int) (*locationRegistry, error) {
-	c, err := lru.New(cacheSize)
-	if err != nil {
-		return nil, err
+	var c *lru.Cache
+	var err error
+
+	if cacheSize > 0 {
+		c, err = lru.New(cacheSize)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &locationRegistry{
@@ -38,6 +43,10 @@ func (r *locationRegistry) Get(id borges.LocationID) (*Location, bool) {
 		return l, true
 	}
 
+	if r.cache == nil {
+		return nil, false
+	}
+
 	if l, ok := r.cache.Get(id); ok {
 		return l.(*Location), true
 	}
@@ -47,6 +56,10 @@ func (r *locationRegistry) Get(id borges.LocationID) (*Location, bool) {
 
 // Add stores a location in the registry.
 func (r *locationRegistry) Add(l *Location) {
+	if r.cache == nil {
+		return
+	}
+
 	r.m.RLock()
 	defer r.m.RUnlock()
 
@@ -58,8 +71,10 @@ func (r *locationRegistry) StartTransaction(l *Location) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	r.cache.Remove(l.ID())
 	r.used[l.ID()] = l
+	if r.cache != nil {
+		r.cache.Remove(l.ID())
+	}
 }
 
 // EndTransaction moves a location back to normal cache.
@@ -67,6 +82,8 @@ func (r *locationRegistry) EndTransaction(l *Location) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	r.cache.Add(l.ID(), l)
 	delete(r.used, l.ID())
+	if r.cache != nil {
+		r.cache.Add(l.ID(), l)
+	}
 }

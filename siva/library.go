@@ -12,9 +12,6 @@ import (
 	butil "gopkg.in/src-d/go-billy.v4/util"
 )
 
-// LocationRegistrySize is the number of locations cached in the registry.
-const LocationRegistrySize = 1024
-
 // Library represents a borges.Library implementation based on siva files.
 type Library struct {
 	id            borges.LibraryID
@@ -23,15 +20,24 @@ type Library struct {
 	locReg        *locationRegistry
 }
 
+// LibraryOptions hold configuration options for the library.
+type LibraryOptions struct {
+	// Transactional enables transactions for repository writes.
+	Transactional bool
+	// RegistryCache is the maximum number of locations in the cache. A value
+	// of 0 disables the cache.
+	RegistryCache int
+}
+
 var _ borges.Library = (*Library)(nil)
 
 // NewLibrary creates a new siva.Library.
 func NewLibrary(
 	id string,
 	fs billy.Filesystem,
-	transactional bool,
+	ops LibraryOptions,
 ) (*Library, error) {
-	l, err := newLocationRegistry(LocationRegistrySize)
+	l, err := newLocationRegistry(ops.RegistryCache)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +45,7 @@ func NewLibrary(
 	return &Library{
 		id:            borges.LibraryID(id),
 		fs:            fs,
-		transactional: transactional,
+		transactional: ops.Transactional,
 		locReg:        l,
 	}, nil
 }

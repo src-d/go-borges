@@ -19,7 +19,7 @@ func TestCheckpoint(t *testing.T) {
 	require.NoError(err)
 
 	fs := memfs.New()
-	lib, err := NewLibrary("test", fs, true)
+	lib, err := NewLibrary("test", fs, LibraryOptions{Transactional: true})
 	require.NoError(err)
 
 	var l borges.Location
