@@ -21,7 +21,8 @@ func setupTranstaction(
 	require.NoError(err)
 
 	fs := memfs.New()
-	lib := NewLibrary("test", fs, true)
+	lib, err := NewLibrary("test", fs, true)
+	require.NoError(err)
 
 	err = util.WriteFile(fs, "foo-bar.siva", sivaData, 0666)
 	require.NoError(err)

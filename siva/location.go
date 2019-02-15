@@ -20,9 +20,8 @@ var (
 )
 
 type Location struct {
-	id   borges.LocationID
-	path string
-	// cachedFS billy.Filesystem
+	id       borges.LocationID
+	path     string
 	cachedFS sivafs.SivaFS
 	library  *Library
 

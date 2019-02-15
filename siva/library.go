@@ -6,27 +6,42 @@ import (
 	"strings"
 
 	borges "github.com/src-d/go-borges"
+
 	"github.com/src-d/go-borges/util"
 	billy "gopkg.in/src-d/go-billy.v4"
 	butil "gopkg.in/src-d/go-billy.v4/util"
 )
+
+// LocationRegistrySize is the number of locations cached in the registry.
+const LocationRegistrySize = 1024
 
 // Library represents a borges.Library implementation based on siva files.
 type Library struct {
 	id            borges.LibraryID
 	fs            billy.Filesystem
 	transactional bool
+	locReg        *locationRegistry
 }
 
 var _ borges.Library = (*Library)(nil)
 
 // NewLibrary creates a new siva.Library.
-func NewLibrary(id string, fs billy.Filesystem, transactional bool) *Library {
+func NewLibrary(
+	id string,
+	fs billy.Filesystem,
+	transactional bool,
+) (*Library, error) {
+	l, err := newLocationRegistry(LocationRegistrySize)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Library{
 		id:            borges.LibraryID(id),
 		fs:            fs,
 		transactional: transactional,
-	}
+		locReg:        l,
+	}, nil
 }
 
 // ID implements borges.Library interface.
@@ -114,8 +129,19 @@ func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, err
 
 // Location implements borges.Library interface.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
+	if loc, ok := l.locReg.Get(id); ok {
+		return loc, nil
+	}
+
 	path := fmt.Sprintf("%s.siva", id)
-	return NewLocation(id, l, path)
+	loc, err := NewLocation(id, l, path)
+	if err != nil {
+		return nil, err
+	}
+
+	l.locReg.Add(loc)
+
+	return loc, nil
 }
 
 // Locations implements borges.Library interface.
@@ -161,4 +187,12 @@ func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 func (l *Library) Libraries() (borges.LibraryIterator, error) {
 	libs := []borges.Library{l}
 	return util.NewLibraryIterator(libs), nil
+}
+
+func (l *Library) startTransaction(loc *Location) {
+	l.locReg.StartTransaction(loc)
+}
+
+func (l *Library) endTransaction(loc *Location) {
+	l.locReg.EndTransaction(loc)
 }
