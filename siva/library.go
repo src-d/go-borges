@@ -37,7 +37,7 @@ func NewLibrary(
 	fs billy.Filesystem,
 	ops LibraryOptions,
 ) (*Library, error) {
-	l, err := newLocationRegistry(ops.RegistryCache)
+	lr, err := newLocationRegistry(ops.RegistryCache)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func NewLibrary(
 		id:            borges.LibraryID(id),
 		fs:            fs,
 		transactional: ops.Transactional,
-		locReg:        l,
+		locReg:        lr,
 	}, nil
 }
 
@@ -193,12 +193,4 @@ func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 func (l *Library) Libraries() (borges.LibraryIterator, error) {
 	libs := []borges.Library{l}
 	return util.NewLibraryIterator(libs), nil
-}
-
-func (l *Library) startTransaction(loc *Location) {
-	l.locReg.StartTransaction(loc)
-}
-
-func (l *Library) endTransaction(loc *Location) {
-	l.locReg.EndTransaction(loc)
 }

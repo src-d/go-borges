@@ -19,17 +19,17 @@ var (
 
 const checkpointExtension = ".checkpoint"
 
-// Checkpoint tracks the status of a siva file and creates checkpoints to be
+// checkpoint tracks the status of a siva file and creates checkpoints to be
 // able to return back to a known state of that siva file.
-type Checkpoint struct {
+type checkpoint struct {
 	offset  int64
 	baseFs  billy.Filesystem
 	path    string
 	persist string
 }
 
-// NewCheckpoint builds a new Checkpoint.
-func NewCheckpoint(fs billy.Filesystem, path string) (*Checkpoint, error) {
+// newCheckpoint builds a new Checkpoint.
+func newCheckpoint(fs billy.Filesystem, path string) (*checkpoint, error) {
 	persist := path + checkpointExtension
 
 	if _, err := fs.Stat(path); err != nil && os.IsNotExist(err) {
@@ -38,7 +38,7 @@ func NewCheckpoint(fs billy.Filesystem, path string) (*Checkpoint, error) {
 			borges.ErrLocationNotExists.New(path))
 	}
 
-	c := &Checkpoint{
+	c := &checkpoint{
 		baseFs:  fs,
 		path:    path,
 		persist: persist,
@@ -64,7 +64,7 @@ func NewCheckpoint(fs billy.Filesystem, path string) (*Checkpoint, error) {
 
 // Apply applies if necessary the operations on the siva file to
 // leave it in the last correct state the checkpoint keeps.
-func (c *Checkpoint) Apply() error {
+func (c *checkpoint) Apply() error {
 	if c.offset > 0 {
 		f, err := c.baseFs.Open(c.path)
 		if err != nil {
@@ -82,7 +82,7 @@ func (c *Checkpoint) Apply() error {
 }
 
 // Save saves the current state of the siva file.
-func (c *Checkpoint) Save() error {
+func (c *checkpoint) Save() error {
 	info, err := c.baseFs.Stat(c.path)
 	if err != nil {
 		return ErrCannotUseSivaFile.Wrap(err)
@@ -98,7 +98,7 @@ func (c *Checkpoint) Save() error {
 }
 
 // Reset resets the checkpoint.
-func (c *Checkpoint) Reset() error {
+func (c *checkpoint) Reset() error {
 	if err := cleanup(c.baseFs, c.persist); err != nil {
 		return ErrCannotUseCheckpointFile.Wrap(err)
 	}

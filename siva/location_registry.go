@@ -8,6 +8,15 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// locationRegistry holds a list of locations that have a transaction under way
+// and recently used.
+type locationRegistry struct {
+	used  map[borges.LocationID]*Location
+	cache *lru.Cache
+
+	m sync.RWMutex
+}
+
 func newLocationRegistry(cacheSize int) (*locationRegistry, error) {
 	var c *lru.Cache
 	var err error
@@ -23,15 +32,6 @@ func newLocationRegistry(cacheSize int) (*locationRegistry, error) {
 		used:  make(map[borges.LocationID]*Location),
 		cache: c,
 	}, nil
-}
-
-// locationRegistry holds a list of locations that have a transaction under way
-// and recently used.
-type locationRegistry struct {
-	used  map[borges.LocationID]*Location
-	cache *lru.Cache
-
-	m sync.RWMutex
 }
 
 // Get retrieves a location from the registry.
