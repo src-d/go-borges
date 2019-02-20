@@ -93,6 +93,10 @@ func TestCommit(t *testing.T) {
 	err = w.Commit()
 	require.NoError(err)
 
+	// after commit the repository should be marked as closed
+	err = w.Commit()
+	require.EqualError(err, ErrRepoAlreadyClosed.New(w.ID()).Error())
+
 	// after commit the tag should still not be seen in the read repo
 
 	_, err = read.Tag("new_tag")
@@ -120,6 +124,10 @@ func TestRollback(t *testing.T) {
 
 	err = w.Close()
 	require.NoError(err)
+
+	// after colse the repository should be marked as closed
+	err = w.Close()
+	require.EqualError(err, ErrRepoAlreadyClosed.New(w.ID()).Error())
 
 	r, err := l.Get("github.com/foo/bar", borges.ReadOnlyMode)
 	require.NoError(err)
