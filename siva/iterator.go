@@ -9,7 +9,7 @@ import (
 
 type repositoryIterator struct {
 	mode    borges.Mode
-	l       *Location
+	loc     *Location
 	pos     int
 	remotes []*config.RemoteConfig
 }
@@ -30,13 +30,8 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 			continue
 		}
 
-		fs, err := i.l.FS()
-		if err != nil {
-			return nil, err
-		}
-
 		id := toRepoID(r.URLs[0])
-		return NewRepository(id, fs, i.mode, i.l)
+		return i.loc.repository(id, i.mode)
 	}
 }
 
