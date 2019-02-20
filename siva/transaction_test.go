@@ -2,14 +2,38 @@ package siva
 
 import (
 	"io/ioutil"
+	"path"
 	"testing"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/stretchr/testify/require"
+	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-billy.v4/util"
 	git "gopkg.in/src-d/go-git.v4"
 )
+
+func setupFS(t *testing.T) billy.Filesystem {
+	t.Helper()
+	require := require.New(t)
+
+	fs := memfs.New()
+
+	sivaFiles := []string{
+		"foo-bar.siva",
+		"foo-qux.siva",
+	}
+
+	for _, f := range sivaFiles {
+		path := path.Join("..", "_testdata", "siva", f)
+		sivaData, err := ioutil.ReadFile(path)
+		require.NoError(err)
+		err = util.WriteFile(fs, f, sivaData, 0666)
+		require.NoError(err)
+	}
+
+	return fs
+}
 
 func setupTranstaction(
 	t *testing.T,
@@ -17,14 +41,13 @@ func setupTranstaction(
 	t.Helper()
 	require := require.New(t)
 
-	sivaData, err := ioutil.ReadFile("../_testdata/siva/foo-bar.siva")
+	fs := setupFS(t)
+
+	lib, err := NewLibrary("test", fs, LibraryOptions{
+		Transactional: true,
+	})
 	require.NoError(err)
 
-	fs := memfs.New()
-	lib := NewLibrary("test", fs, true)
-
-	err = util.WriteFile(fs, "foo-bar.siva", sivaData, 0666)
-	require.NoError(err)
 	l, err := lib.Location("foo-bar")
 	require.NoError(err)
 

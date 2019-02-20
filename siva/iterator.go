@@ -16,6 +16,7 @@ type repositoryIterator struct {
 
 var _ borges.RepositoryIterator = (*repositoryIterator)(nil)
 
+// Next implements the borges.RepositoryIterator interface.
 func (i *repositoryIterator) Next() (borges.Repository, error) {
 	for {
 		if i.pos >= len(i.remotes) {
@@ -39,6 +40,7 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 	}
 }
 
+// ForEach implements the borges.RepositoryIterator interface.
 func (i *repositoryIterator) ForEach(f func(borges.Repository) error) error {
 	for {
 		r, err := i.Next()
@@ -56,4 +58,5 @@ func (i *repositoryIterator) ForEach(f func(borges.Repository) error) error {
 	}
 }
 
+// Close implements the borges.RepositoryIterator interface.
 func (i *repositoryIterator) Close() {}

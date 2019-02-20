@@ -9,6 +9,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
+// Repository is an implementation for siva files of borges.Repository
+// interface.
 type Repository struct {
 	id   borges.RepositoryID
 	repo *git.Repository
@@ -20,6 +22,7 @@ type Repository struct {
 
 var _ borges.Repository = (*Repository)(nil)
 
+// NewRepository creates a new siva backed Repository.
 func NewRepository(
 	id borges.RepositoryID,
 	fs sivafs.SivaFS,
@@ -41,36 +44,50 @@ func NewRepository(
 	}, nil
 }
 
+// ID implements borges.Repository interface.
 func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
+// LocationID implements borges.Repository interface.
 func (r *Repository) LocationID() borges.LocationID {
 	return r.location.ID()
 }
 
+// Mode implements borges.Repository interface.
 func (r *Repository) Mode() borges.Mode {
 	return r.mode
 }
 
+// Commit implements borges.Repository interface.
 func (r *Repository) Commit() error {
+	if r.mode != borges.RWMode {
+		return nil
+	}
+
 	err := r.fs.Sync()
 	if err != nil {
 		return err
 	}
 
-	return r.location.Commit()
+	return r.location.Commit(r.mode)
 }
 
+// Close implements borges.Repository interface.
 func (r *Repository) Close() error {
+	if r.mode != borges.RWMode {
+		return nil
+	}
+
 	err := r.fs.Sync()
 	if err != nil {
 		return err
 	}
 
-	return r.location.Rollback()
+	return r.location.Rollback(r.mode)
 }
 
+// R implements borges.Repository interface.
 func (r *Repository) R() *git.Repository {
 	return r.repo
 }
