@@ -135,12 +135,21 @@ func (l *Library) Repositories(mode borges.Mode) (borges.RepositoryIterator, err
 
 // Location implements borges.Library interface.
 func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
+	return l.location(id, false)
+}
+
+// AddLocation creates a new borges.Location if it does not exist.
+func (l *Library) AddLocation(id borges.LocationID) (borges.Location, error) {
+	return l.location(id, true)
+}
+
+func (l *Library) location(id borges.LocationID, create bool) (borges.Location, error) {
 	if loc, ok := l.locReg.Get(id); ok {
 		return loc, nil
 	}
 
 	path := fmt.Sprintf("%s.siva", id)
-	loc, err := NewLocation(id, l, path)
+	loc, err := NewLocation(id, l, path, create)
 	if err != nil {
 		return nil, err
 	}

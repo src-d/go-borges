@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"os"
 	"sync"
 
 	borges "github.com/src-d/go-borges"
@@ -26,9 +27,20 @@ type Location struct {
 
 var _ borges.Location = (*Location)(nil)
 
-// NewLocation creates a new Location object.
-func NewLocation(id borges.LocationID, lib *Library, path string) (*Location, error) {
-	cp, err := newCheckpoint(lib.fs, path)
+// OpenLocation opens a location and returns a Location struct.
+func OpenLocation(id borges.LocationID, lib *Library, path string) (*Location, error) {
+	return NewLocation(id, lib, path, false)
+}
+
+// CreateLocation opens or creates a location and returns a Location struct.
+func CreateLocation(id borges.LocationID, lib *Library, path string) (*Location, error) {
+	return NewLocation(id, lib, path, true)
+}
+
+// NewLocation creates a new Location struct. If create is true the underlying
+// siva file is created.
+func NewLocation(id borges.LocationID, lib *Library, path string, create bool) (*Location, error) {
+	cp, err := newCheckpoint(lib.fs, path, create)
 	if err != nil {
 		return nil, err
 	}
@@ -38,11 +50,6 @@ func NewLocation(id borges.LocationID, lib *Library, path string) (*Location, er
 		path:       path,
 		lib:        lib,
 		checkpoint: cp,
-	}
-
-	_, err = loc.FS()
-	if err != nil {
-		return nil, err
 	}
 
 	loc.txer = newTransactioner(loc, lib.locReg)
@@ -87,6 +94,9 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 	}
 
 	repo, err := l.repository(id, borges.RWMode)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := &config.RemoteConfig{
 		Name: id.String(),
@@ -131,6 +141,18 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 
 // Has implements the borges.Location interface.
 func (l *Location) Has(name borges.RepositoryID) (bool, error) {
+	if l.cachedFS == nil {
+		// Return false when the siva file does not exist. If repository is
+		// called it will create a new siva file.
+		_, err := l.lib.fs.Stat(l.path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+
 	repo, err := l.repository("", borges.ReadOnlyMode)
 	if err != nil {
 		return false, err
@@ -155,6 +177,23 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 // Repositories implements the borges.Location interface.
 func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
 	var remotes []*config.RemoteConfig
+
+	if l.cachedFS == nil {
+		// Return false when the siva file does not exist. If repository is
+		// called it will create a new siva file.
+		_, err := l.lib.fs.Stat(l.path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return &repositoryIterator{
+					mode:    mode,
+					loc:     l,
+					pos:     0,
+					remotes: remotes,
+				}, nil
+			}
+			return nil, err
+		}
+	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
 	if err != nil {

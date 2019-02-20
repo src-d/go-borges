@@ -29,13 +29,15 @@ type checkpoint struct {
 }
 
 // newCheckpoint builds a new Checkpoint.
-func newCheckpoint(fs billy.Filesystem, path string) (*checkpoint, error) {
+func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, error) {
 	persist := path + checkpointExtension
 
 	if _, err := fs.Stat(path); err != nil && os.IsNotExist(err) {
 		cleanup(fs, persist)
-		return nil, ErrCannotUseSivaFile.Wrap(
-			borges.ErrLocationNotExists.New(path))
+		if !create {
+			return nil, ErrCannotUseSivaFile.Wrap(
+				borges.ErrLocationNotExists.New(path))
+		}
 	}
 
 	c := &checkpoint{
@@ -50,7 +52,7 @@ func newCheckpoint(fs billy.Filesystem, path string) (*checkpoint, error) {
 			return nil, ErrCannotUseCheckpointFile.Wrap(err)
 		}
 
-		offset = 0
+		offset = -1
 	}
 
 	c.offset = offset
@@ -76,6 +78,11 @@ func (c *checkpoint) Apply() error {
 			return ErrCannotUseSivaFile.Wrap(err)
 
 		}
+	} else if c.offset == 0 {
+		err := c.baseFs.Remove(c.path)
+		if err != nil {
+			return ErrCannotUseSivaFile.Wrap(err)
+		}
 	}
 
 	return c.Reset()
@@ -83,17 +90,21 @@ func (c *checkpoint) Apply() error {
 
 // Save saves the current state of the siva file.
 func (c *checkpoint) Save() error {
-	info, err := c.baseFs.Stat(c.path)
-	if err != nil {
-		return ErrCannotUseSivaFile.Wrap(err)
+	var size int64
 
+	info, err := c.baseFs.Stat(c.path)
+	if err != nil && !os.IsNotExist(err) {
+		return ErrCannotUseSivaFile.Wrap(err)
+	}
+	if err == nil {
+		size = info.Size()
 	}
 
-	if err := writeInt64(c.baseFs, c.persist, info.Size()); err != nil {
+	if err := writeInt64(c.baseFs, c.persist, size); err != nil {
 		return ErrCannotUseCheckpointFile.Wrap(err)
 	}
 
-	c.offset = info.Size()
+	c.offset = size
 	return nil
 }
 
@@ -103,7 +114,7 @@ func (c *checkpoint) Reset() error {
 		return ErrCannotUseCheckpointFile.Wrap(err)
 	}
 
-	c.offset = 0
+	c.offset = -1
 	return nil
 }
 
@@ -137,7 +148,6 @@ func readInt64(fs billy.Filesystem, path string) (int64, error) {
 	}
 
 	if num < 0 {
-
 		return -1, ErrMalformedData.New()
 	}
 

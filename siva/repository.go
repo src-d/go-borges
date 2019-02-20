@@ -41,7 +41,12 @@ func NewRepository(
 	sto := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
 	repo, err := git.Open(sto, nil)
 	if err != nil {
-		return nil, borges.ErrLocationNotExists.New(id)
+		if err == git.ErrRepositoryNotExists {
+			repo, err = git.Init(sto, nil)
+		}
+		if err != nil {
+			return nil, borges.ErrLocationNotExists.New(id)
+		}
 	}
 
 	return &Repository{
