@@ -116,3 +116,35 @@ func TestLocationHasURL(t *testing.T) {
 		require.Equal("location", string(l))
 	}
 }
+
+func TestLocation(t *testing.T) {
+	require := require.New(t)
+
+	id, err := borges.NewRepositoryID("http://github.com/foo/bar")
+	require.NoError(err)
+
+	lib, err := NewLibrary("test", memfs.New(), LibraryOptions{})
+	require.NoError(err)
+
+	var location borges.Location
+	location, err = lib.AddLocation("foo")
+	require.NoError(err)
+
+	r, err := location.Init(id)
+	require.NoError(err)
+	require.NotNil(r)
+
+	iter, err := location.Repositories(borges.RWMode)
+	require.NoError(err)
+
+	var ids []borges.RepositoryID
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
+		return nil
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.RepositoryID{
+		"github.com/foo/bar",
+	})
+}
