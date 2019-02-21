@@ -143,7 +143,7 @@ func (s *checkpointSuite) TestNew_Dangling_Checkpoint_File() {
 
 	_, err = newCheckpoint(s.fs, siva, false)
 	expected := ErrCannotUseSivaFile.Wrap(
-		borges.ErrLocationNotExists.New(siva)).Error()
+		borges.ErrLocationNotExists.New(siva), siva).Error()
 	require.EqualError(err, expected)
 
 	_, err = s.fs.Lstat(cpPath)
@@ -156,7 +156,7 @@ func (s *checkpointSuite) TestNew_Create() {
 	siva := "fake.siva"
 	_, err := newCheckpoint(s.fs, siva, false)
 	expected := ErrCannotUseSivaFile.Wrap(
-		borges.ErrLocationNotExists.New(siva)).Error()
+		borges.ErrLocationNotExists.New(siva), siva).Error()
 	require.EqualError(err, expected)
 
 	cp, err := newCheckpoint(s.fs, siva, true)

@@ -6,13 +6,112 @@ import (
 	borges "github.com/src-d/go-borges"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-billy.v4/memfs"
+	"github.com/stretchr/testify/suite"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
-func TestAddLocation(t *testing.T) {
-	require := require.New(t)
-	fs := setupFS(t)
+func TestLocation(t *testing.T) {
+	suite.Run(t, &locationSuite{transactional: false})
+	suite.Run(t, &locationSuite{transactional: true})
+}
+
+type locationSuite struct {
+	suite.Suite
+
+	transactional bool
+	lib           *Library
+}
+
+func (s *locationSuite) SetupTest() {
+	require := s.Require()
+
+	fs := setupFS(s.T())
+	lib, err := NewLibrary("test", fs, LibraryOptions{
+		Transactional: s.transactional,
+	})
+	require.NoError(err)
+
+	s.lib = lib
+}
+
+func (s *locationSuite) TestCreate() {
+	require := s.Require()
+
+	id, err := borges.NewRepositoryID("http://github.com/foo/bar")
+	require.NoError(err)
+
+	var location borges.Location
+	location, err = s.lib.AddLocation("foo")
+	require.NoError(err)
+
+	r, err := location.Init(id)
+	require.NoError(err)
+	require.NotNil(r)
+	err = r.Commit()
+	require.NoError(err)
+
+	iter, err := location.Repositories(borges.RWMode)
+	require.NoError(err)
+
+	var ids []borges.RepositoryID
+	err = iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
+		return r.Close()
+	})
+
+	require.NoError(err)
+	require.ElementsMatch(ids, []borges.RepositoryID{
+		"github.com/foo/bar",
+	})
+}
+
+func (s *locationSuite) TestLocation_Has() {
+	require := require.New(s.T())
+
+	location, err := s.lib.Location("foo-bar")
+	require.NoError(err)
+
+	// has, err := location.Has("http://github.com/foo/bar")
+	has, err := location.Has("github.com/foo/bar")
+	require.NoError(err)
+	require.True(has)
+
+	has, err = location.Has("http://github.com/foo/no")
+	require.NoError(err)
+	require.False(has)
+}
+
+func (s *locationSuite) TestLocation_InitExists() {
+	require := require.New(s.T())
+
+	location, err := s.lib.Location("foo-bar")
+	require.NoError(err)
+
+	has, err := location.Has("http://github.com/foo/bar")
+	require.NoError(err)
+	require.True(has)
+
+	has, err = location.Has("http://github.com/foo/no")
+	require.NoError(err)
+	require.False(has)
+
+	r, err := location.Init("http://github.com/foo/no")
+	require.NoError(err)
+	err = r.Commit()
+	require.NoError(err)
+
+	has, err = location.Has("http://github.com/foo/bar")
+	require.NoError(err)
+	require.True(has)
+
+	has, err = location.Has("http://github.com/foo/no")
+	require.NoError(err)
+	require.True(has)
+}
+
+func (s *locationSuite) TestAddLocation() {
+	require := s.Require()
+	fs := setupFS(s.T())
 
 	lib, err := NewLibrary("test", fs, LibraryOptions{
 		Transactional: true,
@@ -63,8 +162,8 @@ func TestAddLocation(t *testing.T) {
 	require.NoError(err)
 }
 
-func TestLocationHasURL(t *testing.T) {
-	require := require.New(t)
+func (s *locationSuite) TestHasURL() {
+	require := s.Require()
 
 	repoName := borges.RepositoryID("0168e2c7-eedc-7358-0a09-39ba833bdd54")
 	repoURLs := []string{
@@ -82,10 +181,7 @@ func TestLocationHasURL(t *testing.T) {
 		"github.com/src-d/ssh",
 	}
 
-	lib, err := NewLibrary("test", memfs.New(), LibraryOptions{})
-	require.NoError(err)
-
-	loc, err := lib.AddLocation("location")
+	loc, err := s.lib.AddLocation("location")
 	require.NoError(err)
 
 	repo, err := loc.Init(repoName)
@@ -105,46 +201,34 @@ func TestLocationHasURL(t *testing.T) {
 	err = repo.Commit()
 	require.NoError(err)
 
-	found, _, _, err := lib.Has("github.com/src-d/invalid")
+	found, _, _, err := s.lib.Has("github.com/src-d/invalid")
 	require.NoError(err)
 	require.False(found)
 
 	for _, id := range repoIDs {
-		found, _, l, err := lib.Has(borges.RepositoryID(id))
+		found, _, l, err := s.lib.Has(borges.RepositoryID(id))
 		require.NoError(err)
 		require.True(found)
 		require.Equal("location", string(l))
 	}
 }
 
-func TestLocation(t *testing.T) {
-	require := require.New(t)
+func (s *locationSuite) TestGetOrInit() {
+	require := s.Require()
 
-	id, err := borges.NewRepositoryID("http://github.com/foo/bar")
+	location, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	lib, err := NewLibrary("test", memfs.New(), LibraryOptions{})
-	require.NoError(err)
+	_, err = location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
+	require.True(borges.ErrRepositoryNotExists.Is(err))
 
-	var location borges.Location
-	location, err = lib.AddLocation("foo")
-	require.NoError(err)
-
-	r, err := location.Init(id)
+	r, err := location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
+	r.Commit()
 
-	iter, err := location.Repositories(borges.RWMode)
+	r, err = location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
-
-	var ids []borges.RepositoryID
-	err = iter.ForEach(func(r borges.Repository) error {
-		ids = append(ids, r.ID())
-		return nil
-	})
-
-	require.NoError(err)
-	require.ElementsMatch(ids, []borges.RepositoryID{
-		"github.com/foo/bar",
-	})
+	require.NotNil(r)
+	r.Commit()
 }
