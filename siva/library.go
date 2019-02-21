@@ -158,7 +158,7 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 	}
 
 	path := fmt.Sprintf("%s.siva", id)
-	loc, err := NewLocation(id, l, path, create)
+	loc, err := newLocation(id, l, path, create)
 	if err != nil {
 		return nil, err
 	}

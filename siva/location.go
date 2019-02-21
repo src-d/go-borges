@@ -27,9 +27,9 @@ type Location struct {
 
 var _ borges.Location = (*Location)(nil)
 
-// NewLocation creates a new Location struct. If create is true and the siva
+// newLocation creates a new Location struct. If create is true and the siva
 // file does not exist a new siva file is created.
-func NewLocation(
+func newLocation(
 	id borges.LocationID,
 	lib *Library,
 	path string,
@@ -253,7 +253,7 @@ func (l *Location) repository(
 		return nil, err
 	}
 
-	return NewRepository(id, fs, mode, l)
+	return newRepository(id, fs, mode, l)
 }
 
 func (l *Location) getRepoFS(id borges.RepositoryID, mode borges.Mode) (sivafs.SivaFS, error) {

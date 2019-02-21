@@ -31,8 +31,8 @@ type Repository struct {
 
 var _ borges.Repository = (*Repository)(nil)
 
-// NewRepository creates a new siva backed Repository.
-func NewRepository(
+// newRepository creates a new siva backed Repository.
+func newRepository(
 	id borges.RepositoryID,
 	fs sivafs.SivaFS,
 	m borges.Mode,
