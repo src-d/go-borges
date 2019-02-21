@@ -140,7 +140,7 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 }
 
 // Has implements the borges.Location interface.
-func (l *Location) Has(name borges.RepositoryID) (bool, error) {
+func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 	if l.cachedFS == nil {
 		// Return false when the siva file does not exist. If repository is
 		// called it will create a new siva file.
@@ -165,6 +165,8 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
+	name := toRepoID(repoID.String())
 
 	for _, r := range config.Remotes {
 		id := toRepoID(r.Name)

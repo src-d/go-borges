@@ -30,7 +30,7 @@ func (i *repositoryIterator) Next() (borges.Repository, error) {
 			continue
 		}
 
-		id := toRepoID(r.URLs[0])
+		id := toRepoID(r.Name)
 		return i.loc.repository(id, i.mode)
 	}
 }
