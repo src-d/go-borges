@@ -248,7 +248,7 @@ func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
-	fs, err := l.getRepoFS(id, mode)
+	fs, err := l.getRepoFS(mode)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (l *Location) repository(
 	return newRepository(id, fs, mode, l)
 }
 
-func (l *Location) getRepoFS(id borges.RepositoryID, mode borges.Mode) (sivafs.SivaFS, error) {
+func (l *Location) getRepoFS(mode borges.Mode) (sivafs.SivaFS, error) {
 	if !l.lib.transactional || mode != borges.RWMode {
 		return l.FS()
 	}
