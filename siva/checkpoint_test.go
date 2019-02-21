@@ -40,7 +40,7 @@ func TestCheckpoint_Broken_Siva_File_No_Checkpoint(t *testing.T) {
 	loc, err := lib.Location("really_broken")
 	require.NoError(err)
 	_, err = loc.Get("github.com/foo/bar", borges.ReadOnlyMode)
-	require.True(borges.ErrLocationNotExists.Is(err))
+	require.True(borges.ErrRepositoryNotExists.Is(err))
 }
 
 func TestCheckpoint(t *testing.T) {
