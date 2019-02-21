@@ -47,7 +47,7 @@ func newLocation(
 		checkpoint: cp,
 	}
 
-	loc.txer = newTransactioner(loc, lib.locReg)
+	loc.txer = newTransactioner(loc, lib.locReg, lib.timeout)
 	return loc, nil
 }
 
