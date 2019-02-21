@@ -36,7 +36,7 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 		cleanup(fs, persist)
 		if !create {
 			return nil, ErrCannotUseSivaFile.Wrap(
-				borges.ErrLocationNotExists.New(path))
+				borges.ErrLocationNotExists.New(path), path)
 		}
 	}
 
@@ -49,7 +49,7 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 	offset, err := readInt64(fs, persist)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, ErrCannotUseCheckpointFile.Wrap(err)
+			return nil, ErrCannotUseCheckpointFile.Wrap(err, path)
 		}
 
 		offset = -1
@@ -70,18 +70,18 @@ func (c *checkpoint) Apply() error {
 	if c.offset > 0 {
 		f, err := c.baseFs.Open(c.path)
 		if err != nil {
-			return ErrCannotUseSivaFile.Wrap(err)
+			return ErrCannotUseSivaFile.Wrap(err, c.path)
 		}
 		defer f.Close()
 
 		if err := f.Truncate(c.offset); err != nil {
-			return ErrCannotUseSivaFile.Wrap(err)
+			return ErrCannotUseSivaFile.Wrap(err, c.path)
 
 		}
 	} else if c.offset == 0 {
 		err := c.baseFs.Remove(c.path)
 		if err != nil {
-			return ErrCannotUseSivaFile.Wrap(err)
+			return ErrCannotUseSivaFile.Wrap(err, c.path)
 		}
 	}
 
@@ -94,14 +94,14 @@ func (c *checkpoint) Save() error {
 
 	info, err := c.baseFs.Stat(c.path)
 	if err != nil && !os.IsNotExist(err) {
-		return ErrCannotUseSivaFile.Wrap(err)
+		return ErrCannotUseSivaFile.Wrap(err, c.path)
 	}
 	if err == nil {
 		size = info.Size()
 	}
 
 	if err := writeInt64(c.baseFs, c.persist, size); err != nil {
-		return ErrCannotUseCheckpointFile.Wrap(err)
+		return ErrCannotUseCheckpointFile.Wrap(err, c.path)
 	}
 
 	c.offset = size
@@ -111,7 +111,7 @@ func (c *checkpoint) Save() error {
 // Reset resets the checkpoint.
 func (c *checkpoint) Reset() error {
 	if err := cleanup(c.baseFs, c.persist); err != nil {
-		return ErrCannotUseCheckpointFile.Wrap(err)
+		return ErrCannotUseCheckpointFile.Wrap(err, c.path)
 	}
 
 	c.offset = -1
