@@ -1,9 +1,10 @@
 package siva
 
 import (
+	"sync"
+
 	borges "github.com/src-d/go-borges"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
-	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
@@ -20,6 +21,7 @@ type Location struct {
 	lib        *Library
 	checkpoint *checkpoint
 	txer       *transactioner
+	mu         sync.Mutex
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -47,12 +49,11 @@ func NewLocation(id borges.LocationID, lib *Library, path string) (*Location, er
 	return loc, nil
 }
 
-func (l *Location) newFS() (sivafs.SivaFS, error) {
-	return sivafs.NewFilesystem(l.baseFS(), l.path, memfs.New())
-}
-
 // FS returns a filesystem for the location's siva file.
 func (l *Location) FS() (sivafs.SivaFS, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if l.cachedFS != nil {
 		return l.cachedFS, nil
 	}
@@ -61,7 +62,7 @@ func (l *Location) FS() (sivafs.SivaFS, error) {
 		return nil, err
 	}
 
-	sfs, err := l.newFS()
+	sfs, err := sivafs.NewFilesystem(l.lib.fs, l.path, memfs.New())
 	if err != nil {
 		return nil, err
 	}
@@ -85,15 +86,7 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
 
-	fs, err := l.FS()
-	if err != nil {
-		return nil, err
-	}
-
-	repo, err := NewRepository(id, fs, borges.RWMode, l)
-	if err != nil {
-		return nil, err
-	}
+	repo, err := l.repository(id, borges.RWMode)
 
 	cfg := &config.RemoteConfig{
 		Name: id.String(),
@@ -178,35 +171,10 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 
 	return &repositoryIterator{
 		mode:    mode,
-		l:       l,
+		loc:     l,
 		pos:     0,
 		remotes: remotes,
 	}, nil
-}
-
-func (l *Location) baseFS() billy.Filesystem {
-	return l.lib.fs
-}
-
-func (l *Location) getRepoFs(id borges.RepositoryID, mode borges.Mode) (sivafs.SivaFS, error) {
-	if !l.lib.transactional || mode != borges.RWMode {
-		return l.FS()
-	}
-
-	if err := l.txer.Start(); err != nil {
-		return nil, err
-	}
-
-	fs, err := l.newFS()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := l.checkpoint.Save(); err != nil {
-		return nil, err
-	}
-
-	return fs, nil
 }
 
 // Commit persists transactional or write operations performed on the repositories.
@@ -243,10 +211,31 @@ func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
-	fs, err := l.getRepoFs(id, mode)
+	fs, err := l.getRepoFS(id, mode)
 	if err != nil {
 		return nil, err
 	}
 
 	return NewRepository(id, fs, mode, l)
+}
+
+func (l *Location) getRepoFS(id borges.RepositoryID, mode borges.Mode) (sivafs.SivaFS, error) {
+	if !l.lib.transactional || mode != borges.RWMode {
+		return l.FS()
+	}
+
+	if err := l.txer.Start(); err != nil {
+		return nil, err
+	}
+
+	fs, err := sivafs.NewFilesystem(l.lib.fs, l.path, memfs.New())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := l.checkpoint.Save(); err != nil {
+		return nil, err
+	}
+
+	return fs, nil
 }

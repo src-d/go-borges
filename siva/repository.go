@@ -1,13 +1,19 @@
 package siva
 
 import (
+	"sync"
+
 	borges "github.com/src-d/go-borges"
 
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
+	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
+
+// ErrReposArleadyClosed is returned when a repository opened in RW mode was already closed.
+var ErrRepoAlreadyClosed = errors.NewKind("repository % already closed")
 
 // Repository is an implementation for siva files of borges.Repository
 // interface.
@@ -16,6 +22,9 @@ type Repository struct {
 	repo *git.Repository
 	fs   sivafs.SivaFS
 	mode borges.Mode
+
+	mu     sync.Mutex
+	closed bool
 
 	location *Location
 }
@@ -65,11 +74,19 @@ func (r *Repository) Commit() error {
 		return nil
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.closed {
+		return ErrRepoAlreadyClosed.New(r.id)
+	}
+
 	err := r.fs.Sync()
 	if err != nil {
 		return err
 	}
 
+	r.closed = true
 	return r.location.Commit(r.mode)
 }
 
@@ -79,11 +96,19 @@ func (r *Repository) Close() error {
 		return nil
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.closed {
+		return ErrRepoAlreadyClosed.New(r.id)
+	}
+
 	err := r.fs.Sync()
 	if err != nil {
 		return err
 	}
 
+	r.closed = true
 	return r.location.Rollback(r.mode)
 }
 
