@@ -14,7 +14,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
-// ErrReposArleadyClosed is returned when a repository opened in RW mode was already closed.
+// ErrRepoAlreadyClosed is returned when a repository opened in RW mode was already closed.
 var ErrRepoAlreadyClosed = errors.NewKind("repository % already closed")
 
 // Repository is an implementation for siva files of borges.Repository
