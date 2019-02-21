@@ -27,19 +27,14 @@ type Location struct {
 
 var _ borges.Location = (*Location)(nil)
 
-// OpenLocation opens a location and returns a Location struct.
-func OpenLocation(id borges.LocationID, lib *Library, path string) (*Location, error) {
-	return NewLocation(id, lib, path, false)
-}
-
-// CreateLocation opens or creates a location and returns a Location struct.
-func CreateLocation(id borges.LocationID, lib *Library, path string) (*Location, error) {
-	return NewLocation(id, lib, path, true)
-}
-
-// NewLocation creates a new Location struct. If create is true the underlying
-// siva file is created.
-func NewLocation(id borges.LocationID, lib *Library, path string, create bool) (*Location, error) {
+// NewLocation creates a new Location struct. If create is true and the siva
+// file does not exist a new siva file is created.
+func NewLocation(
+	id borges.LocationID,
+	lib *Library,
+	path string,
+	create bool,
+) (*Location, error) {
 	cp, err := newCheckpoint(lib.fs, path, create)
 	if err != nil {
 		return nil, err
@@ -112,7 +107,10 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 }
 
 // Get implements the borges.Location interface.
-func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+func (l *Location) Get(
+	id borges.RepositoryID,
+	mode borges.Mode,
+) (borges.Repository, error) {
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err

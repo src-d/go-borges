@@ -17,6 +17,9 @@ func TestAddLocation(t *testing.T) {
 	})
 	require.NoError(err)
 
+	_, err = lib.AddLocation("foo-bar")
+	require.True(ErrLocationExists.Is(err))
+
 	const locationID = "new-location"
 	const repoID = "new-repository"
 
