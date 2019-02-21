@@ -155,6 +155,10 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
 	if err != nil {
+		// the repository is still not initialized
+		if borges.ErrLocationNotExists.Is(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	config, err := repo.R().Config()
