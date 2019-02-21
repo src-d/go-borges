@@ -80,6 +80,8 @@ func (l *Location) ID() borges.LocationID {
 
 // Init implements the borges.Location interface.
 func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
+	id = toRepoID(id.String())
+
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -161,8 +163,12 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 	}
 
 	for _, r := range config.Remotes {
-		if len(r.URLs) > 0 {
-			id := toRepoID(r.URLs[0])
+		id := toRepoID(r.Name)
+		if id == name {
+			return true, nil
+		}
+		for _, url := range r.URLs {
+			id = toRepoID(url)
 			if id == name {
 				return true, nil
 			}

@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	borges "github.com/src-d/go-borges"
+
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
@@ -59,4 +61,58 @@ func TestAddLocation(t *testing.T) {
 	require.NoError(err)
 	err = r.Commit()
 	require.NoError(err)
+}
+
+func TestLocationHasURL(t *testing.T) {
+	require := require.New(t)
+
+	repoName := borges.RepositoryID("0168e2c7-eedc-7358-0a09-39ba833bdd54")
+	repoURLs := []string{
+		"https://github.com/src-d/https",
+		"http://github.com/src-d/http",
+		"git://github.com/src-d/git",
+		"file://github.com/src-d/file",
+		"git@github.com:src-d/ssh",
+	}
+	repoIDs := []string{
+		"github.com/src-d/https",
+		"github.com/src-d/http",
+		"github.com/src-d/git",
+		"github.com/src-d/file",
+		"github.com/src-d/ssh",
+	}
+
+	lib, err := NewLibrary("test", memfs.New(), LibraryOptions{})
+	require.NoError(err)
+
+	loc, err := lib.AddLocation("location")
+	require.NoError(err)
+
+	repo, err := loc.Init(repoName)
+	require.NoError(err)
+	r := repo.R()
+
+	config, err := r.Config()
+	require.NoError(err)
+
+	remote, ok := config.Remotes[repoName.String()]
+	require.True(ok)
+
+	remote.URLs = repoURLs
+	err = r.Storer.SetConfig(config)
+	require.NoError(err)
+
+	err = repo.Commit()
+	require.NoError(err)
+
+	found, _, _, err := lib.Has("github.com/src-d/invalid")
+	require.NoError(err)
+	require.False(found)
+
+	for _, id := range repoIDs {
+		found, _, l, err := lib.Has(borges.RepositoryID(id))
+		require.NoError(err)
+		require.True(found)
+		require.Equal("location", string(l))
+	}
 }
