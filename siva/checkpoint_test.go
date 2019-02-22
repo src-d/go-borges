@@ -40,7 +40,7 @@ func TestCheckpoint_Broken_Siva_File_No_Checkpoint(t *testing.T) {
 	loc, err := lib.Location("really_broken")
 	require.NoError(err)
 	_, err = loc.Get("github.com/foo/bar", borges.ReadOnlyMode)
-	require.True(borges.ErrLocationNotExists.Is(err))
+	require.True(borges.ErrRepositoryNotExists.Is(err))
 }
 
 func TestCheckpoint(t *testing.T) {
@@ -143,7 +143,7 @@ func (s *checkpointSuite) TestNew_Dangling_Checkpoint_File() {
 
 	_, err = newCheckpoint(s.fs, siva, false)
 	expected := ErrCannotUseSivaFile.Wrap(
-		borges.ErrLocationNotExists.New(siva)).Error()
+		borges.ErrLocationNotExists.New(siva), siva).Error()
 	require.EqualError(err, expected)
 
 	_, err = s.fs.Lstat(cpPath)
@@ -156,7 +156,7 @@ func (s *checkpointSuite) TestNew_Create() {
 	siva := "fake.siva"
 	_, err := newCheckpoint(s.fs, siva, false)
 	expected := ErrCannotUseSivaFile.Wrap(
-		borges.ErrLocationNotExists.New(siva)).Error()
+		borges.ErrLocationNotExists.New(siva), siva).Error()
 	require.EqualError(err, expected)
 
 	cp, err := newCheckpoint(s.fs, siva, true)

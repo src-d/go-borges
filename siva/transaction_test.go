@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"path"
 	"testing"
+	"time"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/stretchr/testify/require"
@@ -134,4 +135,30 @@ func TestRollback(t *testing.T) {
 
 	_, err = r.R().Tag("new_tag")
 	require.Equal(git.ErrTagNotFound, err)
+}
+
+func TestTwoInitNoCommit(t *testing.T) {
+	require := require.New(t)
+
+	fs := setupFS(t)
+
+	lib, err := NewLibrary("test", fs, LibraryOptions{
+		Transactional: true,
+		Timeout:       100 * time.Millisecond,
+	})
+	require.NoError(err)
+
+	location, err := lib.AddLocation("test")
+	require.NoError(err)
+
+	_, err = location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
+	require.True(borges.ErrRepositoryNotExists.Is(err))
+
+	r, err := location.Init("http://github.com/foo/bar")
+	require.NoError(err)
+	require.NotNil(r)
+
+	_, err = location.Init("http://github.com/foo/baz")
+	require.Error(err)
+	require.True(ErrTransactionTimeout.Is(err))
 }

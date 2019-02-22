@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	borges "github.com/src-d/go-borges"
 
@@ -21,6 +22,7 @@ type Library struct {
 	id            borges.LibraryID
 	fs            billy.Filesystem
 	transactional bool
+	timeout       time.Duration
 	locReg        *locationRegistry
 }
 
@@ -28,12 +30,18 @@ type Library struct {
 type LibraryOptions struct {
 	// Transactional enables transactions for repository writes.
 	Transactional bool
+	// Timeout is the time it will wait while another transaction
+	// is being done before error. 0 means default.
+	Timeout time.Duration
 	// RegistryCache is the maximum number of locations in the cache. A value
 	// of 0 disables the cache.
 	RegistryCache int
 }
 
 var _ borges.Library = (*Library)(nil)
+
+// txTimeout is the default transaction timeout.
+const txTimeout = 60 * time.Second
 
 // NewLibrary creates a new siva.Library.
 func NewLibrary(
@@ -46,10 +54,16 @@ func NewLibrary(
 		return nil, err
 	}
 
+	timeout := ops.Timeout
+	if timeout == 0 {
+		timeout = txTimeout
+	}
+
 	return &Library{
 		id:            borges.LibraryID(id),
 		fs:            fs,
 		transactional: ops.Transactional,
+		timeout:       timeout,
 		locReg:        lr,
 	}, nil
 }

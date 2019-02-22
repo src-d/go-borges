@@ -47,7 +47,7 @@ func newLocation(
 		checkpoint: cp,
 	}
 
-	loc.txer = newTransactioner(loc, lib.locReg)
+	loc.txer = newTransactioner(loc, lib.locReg, lib.timeout)
 	return loc, nil
 }
 
@@ -80,6 +80,8 @@ func (l *Location) ID() borges.LocationID {
 
 // Init implements the borges.Location interface.
 func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
+	id = toRepoID(id.String())
+
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
@@ -138,7 +140,7 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 }
 
 // Has implements the borges.Location interface.
-func (l *Location) Has(name borges.RepositoryID) (bool, error) {
+func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 	if l.cachedFS == nil {
 		// Return false when the siva file does not exist. If repository is
 		// called it will create a new siva file.
@@ -153,6 +155,10 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
 	if err != nil {
+		// the repository is still not initialized
+		if borges.ErrLocationNotExists.Is(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	config, err := repo.R().Config()
@@ -160,9 +166,15 @@ func (l *Location) Has(name borges.RepositoryID) (bool, error) {
 		return false, err
 	}
 
+	name := toRepoID(repoID.String())
+
 	for _, r := range config.Remotes {
-		if len(r.URLs) > 0 {
-			id := toRepoID(r.URLs[0])
+		id := toRepoID(r.Name)
+		if id == name {
+			return true, nil
+		}
+		for _, url := range r.URLs {
+			id = toRepoID(url)
 			if id == name {
 				return true, nil
 			}
