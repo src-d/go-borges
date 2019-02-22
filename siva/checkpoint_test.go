@@ -3,7 +3,6 @@ package siva
 import (
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -58,24 +57,7 @@ var _ suite.SetupTestSuite = (*checkpointSuite)(nil)
 var _ suite.TearDownTestSuite = (*checkpointSuite)(nil)
 
 func (s *checkpointSuite) SetupTest() {
-	var require = s.Require()
-
-	s.fs = setupFS(s.T())
-	entries, err := s.fs.ReadDir(s.fs.Root())
-	require.NoError(err)
-
-	var sivas []string
-	for _, e := range entries {
-		if e.Mode().IsRegular() &&
-			strings.HasSuffix(e.Name(), ".siva") {
-			sivas = append(sivas, e.Name())
-		}
-	}
-
-	require.True(len(sivas) > 0,
-		"siva files not found in test directory")
-
-	s.sivas = sivas
+	s.fs, s.sivas = setupFS(s.T())
 }
 
 func (s *checkpointSuite) TearDownTest() {

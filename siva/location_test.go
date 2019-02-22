@@ -23,15 +23,9 @@ type locationSuite struct {
 }
 
 func (s *locationSuite) SetupTest() {
-	require := s.Require()
-
-	fs := setupFS(s.T())
-	lib, err := NewLibrary("test", fs, LibraryOptions{
+	s.lib = setupLibrary(s.T(), "test", LibraryOptions{
 		Transactional: s.transactional,
 	})
-	require.NoError(err)
-
-	s.lib = lib
 }
 
 func (s *locationSuite) TestCreate() {
@@ -110,23 +104,17 @@ func (s *locationSuite) TestInitExists() {
 
 func (s *locationSuite) TestAddLocation() {
 	require := s.Require()
-	fs := setupFS(s.T())
 
-	lib, err := NewLibrary("test", fs, LibraryOptions{
-		Transactional: true,
-	})
-	require.NoError(err)
-
-	_, err = lib.AddLocation("foo-bar")
+	_, err := s.lib.AddLocation("foo-bar")
 	require.True(ErrLocationExists.Is(err))
 
 	const locationID = "new-location"
 	const repoID = "new-repository"
 
-	_, err = lib.Location(locationID)
+	_, err = s.lib.Location(locationID)
 	require.True(borges.ErrLocationNotExists.Is(err))
 
-	l, err := lib.AddLocation(locationID)
+	l, err := s.lib.AddLocation(locationID)
 	require.NoError(err)
 	require.NotNil(l)
 
@@ -138,7 +126,7 @@ func (s *locationSuite) TestAddLocation() {
 	err = r.Commit()
 	require.NoError(err)
 
-	locs, err := lib.Locations()
+	locs, err := s.lib.Locations()
 	require.NoError(err)
 
 	found := false
@@ -155,7 +143,7 @@ func (s *locationSuite) TestAddLocation() {
 	err = r.Commit()
 	require.NoError(err)
 
-	r, err = lib.Get(repoID, borges.RWMode)
+	r, err = s.lib.Get(repoID, borges.RWMode)
 	require.NoError(err)
 	err = r.Commit()
 	require.NoError(err)

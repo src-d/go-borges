@@ -15,14 +15,10 @@ func point(p interface{}) string {
 func TestRegistryNoCache(t *testing.T) {
 	require := require.New(t)
 
-	fs := setupFS(t)
-
-	ops := LibraryOptions{
+	lib := setupLibrary(t, "test", LibraryOptions{
 		Transactional: true,
 		RegistryCache: 0,
-	}
-	lib, err := NewLibrary("test", fs, ops)
-	require.NoError(err)
+	})
 
 	// locations are recreated when no transaction is being made
 
@@ -78,14 +74,10 @@ func TestRegistryNoCache(t *testing.T) {
 func TestRegistryCache(t *testing.T) {
 	require := require.New(t)
 
-	fs := setupFS(t)
-
-	ops := LibraryOptions{
+	lib := setupLibrary(t, "test", LibraryOptions{
 		Transactional: true,
 		RegistryCache: 1,
-	}
-	lib, err := NewLibrary("test", fs, ops)
-	require.NoError(err)
+	})
 
 	// as the capacity is 1 getting the same location twice returns the same
 	// object
