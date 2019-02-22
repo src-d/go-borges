@@ -65,7 +65,7 @@ func (s *locationSuite) TestCreate() {
 	})
 }
 
-func (s *locationSuite) TestLocation_Has() {
+func (s *locationSuite) TestHas() {
 	require := require.New(s.T())
 
 	location, err := s.lib.Location("foo-bar")
@@ -81,7 +81,7 @@ func (s *locationSuite) TestLocation_Has() {
 	require.False(has)
 }
 
-func (s *locationSuite) TestLocation_InitExists() {
+func (s *locationSuite) TestInitExists() {
 	require := require.New(s.T())
 
 	location, err := s.lib.Location("foo-bar")
@@ -231,4 +231,55 @@ func (s *locationSuite) TestGetOrInit() {
 	require.NoError(err)
 	require.NotNil(r)
 	r.Commit()
+}
+
+func (s *locationSuite) TestFS() {
+	require := s.Require()
+
+	location, err := s.lib.Location("foo-bar")
+	require.NoError(err)
+
+	loc, ok := location.(*Location)
+	require.True(ok)
+
+	fs, err := loc.FS()
+	require.NoError(err)
+
+	stat, err := fs.Stat("objects/pack/pack-bb25e08fc37bda477660be0609a356f6d1e65ffc.pack")
+	require.NoError(err)
+	require.Equal(int64(207), stat.Size())
+}
+
+func (s *locationSuite) TestRepositories() {
+	require := s.Require()
+
+	repoIDs := []string{
+		"github.com/src-d/https",
+		"github.com/src-d/http",
+		"github.com/src-d/git",
+		"github.com/src-d/file",
+		"github.com/src-d/ssh",
+	}
+
+	loc, err := s.lib.AddLocation("test")
+	require.NoError(err)
+
+	for _, id := range repoIDs {
+		e, err := loc.Init(borges.RepositoryID(id))
+		require.NoError(err)
+		err = e.Commit()
+		require.NoError(err)
+	}
+
+	it, err := loc.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	var names []string
+	err = it.ForEach(func(r borges.Repository) error {
+		names = append(names, r.ID().String())
+		return r.Close()
+	})
+	require.NoError(err)
+
+	require.ElementsMatch(repoIDs, names)
 }
