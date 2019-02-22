@@ -25,7 +25,7 @@ func setupTranstactioner(t *testing.T) *transactioner {
 	require.True(ok)
 	require.Equal(loc, lr)
 
-	txer := newTransactioner(loc, locReg)
+	txer := newTransactioner(loc, locReg, 100*time.Millisecond)
 	require.NotNil(txer)
 	require.Equal(loc, txer.loc)
 	require.Equal(locReg, txer.locReg)
@@ -60,7 +60,6 @@ func TestTransactioner_Timeout(t *testing.T) {
 	var require = require.New(t)
 
 	txer := setupTranstactioner(t)
-	txer.timeout = 100 * time.Millisecond
 
 	err := txer.Start()
 	require.NoError(err)
