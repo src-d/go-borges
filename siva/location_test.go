@@ -71,7 +71,6 @@ func (s *locationSuite) TestHas() {
 	location, err := s.lib.Location("foo-bar")
 	require.NoError(err)
 
-	// has, err := location.Has("http://github.com/foo/bar")
 	has, err := location.Has("github.com/foo/bar")
 	require.NoError(err)
 	require.True(has)
