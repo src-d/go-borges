@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTranstactioner(t *testing.T) *transactioner {
+func setupTranstactioner(t *testing.T, to time.Duration) *transactioner {
 	t.Helper()
 
 	var require = require.New(t)
@@ -25,7 +25,7 @@ func setupTranstactioner(t *testing.T) *transactioner {
 	require.True(ok)
 	require.Equal(loc, lr)
 
-	txer := newTransactioner(loc, locReg, 100*time.Millisecond)
+	txer := newTransactioner(loc, locReg, to)
 	require.NotNil(txer)
 	require.Equal(loc, txer.loc)
 	require.Equal(locReg, txer.locReg)
@@ -36,7 +36,7 @@ func setupTranstactioner(t *testing.T) *transactioner {
 func TestTransactioner(t *testing.T) {
 	var require = require.New(t)
 
-	txer := setupTranstactioner(t)
+	txer := setupTranstactioner(t, txTimeout)
 	const transactions = 1000
 	var (
 		w     sync.WaitGroup
@@ -59,7 +59,7 @@ func TestTransactioner(t *testing.T) {
 func TestTransactioner_Timeout(t *testing.T) {
 	var require = require.New(t)
 
-	txer := setupTranstactioner(t)
+	txer := setupTranstactioner(t, 100*time.Millisecond)
 
 	err := txer.Start()
 	require.NoError(err)
