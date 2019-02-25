@@ -42,7 +42,12 @@ func (s *locationSuite) TestCreate() {
 	require.NoError(err)
 	require.NotNil(r)
 	err = r.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(err)
+	} else {
+		require.EqualError(err,
+			borges.ErrNonTransactional.New().Error())
+	}
 
 	iter, err := location.Repositories(borges.RWMode)
 	require.NoError(err)
@@ -91,7 +96,12 @@ func (s *locationSuite) TestInitExists() {
 	r, err := location.Init("http://github.com/foo/no")
 	require.NoError(err)
 	err = r.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(err)
+	} else {
+		require.EqualError(err,
+			borges.ErrNonTransactional.New().Error())
+	}
 
 	has, err = location.Has("http://github.com/foo/bar")
 	require.NoError(err)
@@ -123,8 +133,11 @@ func (s *locationSuite) TestAddLocation() {
 	require.Equal(l.ID(), r.LocationID())
 	_, err = r.R().CreateTag("test", plumbing.ZeroHash, nil)
 	require.NoError(err)
-	err = r.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(r.Commit())
+	} else {
+		require.NoError(r.Close())
+	}
 
 	locs, err := s.lib.Locations()
 	require.NoError(err)
@@ -140,13 +153,19 @@ func (s *locationSuite) TestAddLocation() {
 
 	r, err = l.Get(repoID, borges.RWMode)
 	require.NoError(err)
-	err = r.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(r.Commit())
+	} else {
+		require.NoError(r.Close())
+	}
 
 	r, err = s.lib.Get(repoID, borges.RWMode)
 	require.NoError(err)
-	err = r.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(r.Commit())
+	} else {
+		require.NoError(r.Close())
+	}
 }
 
 func (s *locationSuite) TestHasURL() {
@@ -185,8 +204,11 @@ func (s *locationSuite) TestHasURL() {
 	err = r.Storer.SetConfig(config)
 	require.NoError(err)
 
-	err = repo.Commit()
-	require.NoError(err)
+	if s.transactional {
+		require.NoError(repo.Commit())
+	} else {
+		require.NoError(repo.Close())
+	}
 
 	found, _, _, err := s.lib.Has("github.com/src-d/invalid")
 	require.NoError(err)
@@ -255,7 +277,12 @@ func (s *locationSuite) TestRepositories() {
 		e, err := loc.Init(borges.RepositoryID(id))
 		require.NoError(err)
 		err = e.Commit()
-		require.NoError(err)
+		if s.transactional {
+			require.NoError(err)
+		} else {
+			require.EqualError(err,
+				borges.ErrNonTransactional.New().Error())
+		}
 	}
 
 	it, err := loc.Repositories(borges.ReadOnlyMode)
