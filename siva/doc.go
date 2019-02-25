@@ -31,6 +31,12 @@ For example:
 	loc.Has("repo1") # true
 	loc.Has("repo2") # true
 
+After use of repositories they should be closed. When the library is
+transactional it can be closed with Commit (only for read write mode) or Close
+(save changes or rollback). When the library is non transactional it must be
+closed with Close. In both cases the repository should not be used again after
+closing it. A double Close returns error.
+
 Transactions
 
 The storage supports transactions and has location lock on transaction when
