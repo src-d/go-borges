@@ -10,12 +10,24 @@ import (
 	"github.com/stretchr/testify/require"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 	"gopkg.in/src-d/go-billy.v4/util"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 const testDir = "../_testdata/siva"
 
-func setupFS(t *testing.T) (billy.Filesystem, []string) {
+func setupMemFS(t *testing.T) (billy.Filesystem, []string) {
+	t.Helper()
+	return setupFS(t, true)
+}
+
+func setupOSFS(t *testing.T) (billy.Filesystem, []string) {
+	t.Helper()
+	return setupFS(t, false)
+}
+
+func setupFS(t *testing.T, inMem bool) (billy.Filesystem, []string) {
 	t.Helper()
 	require := require.New(t)
 
@@ -33,13 +45,21 @@ func setupFS(t *testing.T) (billy.Filesystem, []string) {
 	require.True(len(sivas) > 0,
 		"siva files not found in test directory")
 
-	fs := memfs.New()
+	var fs billy.Filesystem
+	if inMem {
+		fs = memfs.New()
+	} else {
+		path, err := ioutil.TempDir("", "go-borges-siva")
+		require.NoError(err)
+
+		fs = osfs.New(path)
+	}
 
 	for _, siva := range sivas {
 		path := filepath.Join(testDir, siva)
-		sivaData, err := ioutil.ReadFile(path)
+		data, err := ioutil.ReadFile(path)
 		require.NoError(err)
-		err = util.WriteFile(fs, siva, sivaData, 0666)
+		err = util.WriteFile(fs, siva, data, 0666)
 		require.NoError(err)
 	}
 
@@ -54,31 +74,29 @@ func setupLibrary(
 	t.Helper()
 	var require = require.New(t)
 
-	fs, _ := setupFS(t)
+	fs, _ := setupMemFS(t)
 	lib, err := NewLibrary(id, fs, opts)
 	require.NoError(err)
 
 	return lib
 }
 
-func setupTranstaction(
+func createTagOnHead(
 	t *testing.T,
-) (borges.Location, borges.Repository, borges.Repository) {
+	r borges.Repository,
+	name string,
+) *plumbing.Reference {
 	t.Helper()
-	require := require.New(t)
+	var require = require.New(t)
 
-	lib := setupLibrary(t, "test", LibraryOptions{
-		Transactional: true,
-	})
+	repo := r.R()
+	require.NotNil(repo)
 
-	l, err := lib.Location("foo-bar")
+	head, err := repo.Head()
 	require.NoError(err)
 
-	// open two repositories, the write one is in transaction mode
-	r, err := l.Get("github.com/foo/bar", borges.ReadOnlyMode)
-	require.NoError(err)
-	w, err := l.Get("github.com/foo/bar", borges.RWMode)
+	_, err = repo.CreateTag(name, head.Hash(), nil)
 	require.NoError(err)
 
-	return l, r, w
+	return head
 }
