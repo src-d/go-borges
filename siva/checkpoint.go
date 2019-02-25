@@ -68,6 +68,15 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 // leave it in the last correct state the checkpoint keeps.
 func (c *checkpoint) Apply() error {
 	if c.offset > 0 {
+		info, err := c.baseFs.Stat(c.path)
+		if err != nil {
+			return err
+		}
+
+		if info.Size() == c.offset {
+			return c.Reset()
+		}
+
 		f, err := c.baseFs.Open(c.path)
 		if err != nil {
 			return ErrCannotUseSivaFile.Wrap(err, c.path)

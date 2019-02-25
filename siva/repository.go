@@ -111,16 +111,17 @@ func (r *Repository) Commit() error {
 
 // Close implements borges.Repository interface.
 func (r *Repository) Close() error {
+	if r.closed {
+		return ErrRepoAlreadyClosed.New(r.id)
+	}
+
 	if r.mode != borges.RWMode {
+		r.closed = true
 		return nil
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	if r.closed {
-		return ErrRepoAlreadyClosed.New(r.id)
-	}
 
 	err := r.fs.Sync()
 	if err != nil {
