@@ -265,7 +265,7 @@ func (l *Location) repository(
 		return nil, err
 	}
 
-	return newRepository(id, fs, mode, l)
+	return newRepository(id, fs, mode, l.lib.transactional, l)
 }
 
 func (l *Location) getRepoFS(mode borges.Mode) (sivafs.SivaFS, error) {

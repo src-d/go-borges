@@ -20,10 +20,11 @@ var ErrRepoAlreadyClosed = errors.NewKind("repository % already closed")
 // Repository is an implementation for siva files of borges.Repository
 // interface.
 type Repository struct {
-	id   borges.RepositoryID
-	repo *git.Repository
-	fs   sivafs.SivaFS
-	mode borges.Mode
+	id            borges.RepositoryID
+	repo          *git.Repository
+	fs            sivafs.SivaFS
+	mode          borges.Mode
+	transactional bool
 
 	mu     sync.Mutex
 	closed bool
@@ -38,6 +39,7 @@ func newRepository(
 	id borges.RepositoryID,
 	fs sivafs.SivaFS,
 	m borges.Mode,
+	transactional bool,
 	l *Location,
 ) (*Repository, error) {
 	var sto storage.Storer
@@ -57,11 +59,12 @@ func newRepository(
 	}
 
 	return &Repository{
-		id:       id,
-		repo:     repo,
-		fs:       fs,
-		mode:     m,
-		location: l,
+		id:            id,
+		repo:          repo,
+		fs:            fs,
+		mode:          m,
+		transactional: transactional,
+		location:      l,
 	}, nil
 }
 
@@ -82,6 +85,10 @@ func (r *Repository) Mode() borges.Mode {
 
 // Commit implements borges.Repository interface.
 func (r *Repository) Commit() error {
+	if !r.transactional {
+		return borges.ErrNonTransactional.New()
+	}
+
 	if r.mode != borges.RWMode {
 		return nil
 	}
