@@ -171,12 +171,10 @@ func (s *repoSuite) TestCommit_ReadOnly() {
 
 	err = r.Commit()
 	if s.transactional {
-		require.NoError(r.Commit())
+		require.NoError(err)
 	} else {
 		require.True(borges.ErrNonTransactional.Is(err))
 	}
-
-	require.NoError(r.Close())
 }
 
 func (s *repoSuite) TestCommit_RW() {

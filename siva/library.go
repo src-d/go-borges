@@ -3,13 +3,15 @@ package siva
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strings"
 	"time"
 
 	borges "github.com/src-d/go-borges"
-
 	"github.com/src-d/go-borges/util"
+
 	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 	butil "gopkg.in/src-d/go-billy.v4/util"
 	errors "gopkg.in/src-d/go-errors.v1"
 )
@@ -21,6 +23,7 @@ var ErrLocationExists = errors.NewKind("location %s already exists")
 type Library struct {
 	id            borges.LibraryID
 	fs            billy.Filesystem
+	tmp           billy.Filesystem
 	transactional bool
 	timeout       time.Duration
 	locReg        *locationRegistry
@@ -36,6 +39,8 @@ type LibraryOptions struct {
 	// RegistryCache is the maximum number of locations in the cache. A value
 	// of 0 disables the cache.
 	RegistryCache int
+	// TempFS is the temporary filesystem to do transactions and write files.
+	TempFS billy.Filesystem
 }
 
 var _ borges.Library = (*Library)(nil)
@@ -59,9 +64,20 @@ func NewLibrary(
 		timeout = txTimeout
 	}
 
+	tmp := ops.TempFS
+	if tmp == nil {
+		dir, err := ioutil.TempDir("", "go-borges")
+		if err != nil {
+			return nil, err
+		}
+
+		tmp = osfs.New(dir)
+	}
+
 	return &Library{
 		id:            borges.LibraryID(id),
 		fs:            fs,
+		tmp:           tmp,
 		transactional: ops.Transactional,
 		timeout:       timeout,
 		locReg:        lr,

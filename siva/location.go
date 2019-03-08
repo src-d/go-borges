@@ -5,10 +5,15 @@ import (
 	"sync"
 
 	borges "github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/util"
+
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	"gopkg.in/src-d/go-git.v4/storage"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 // ErrMalformedData when checkpoint data is invalid.
@@ -228,21 +233,32 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 
 // Commit persists transactional or write operations performed on the repositories.
 func (l *Location) Commit(mode borges.Mode) error {
-	if !l.lib.transactional || mode != borges.RWMode {
+	if !l.lib.transactional {
+		return borges.ErrNonTransactional.New()
+	}
+
+	if mode != borges.RWMode {
 		return nil
 	}
 
-	defer l.txer.Stop()
+	defer func() {
+		l.cachedFS = nil
+		l.txer.Stop()
+	}()
+
 	if err := l.checkpoint.Reset(); err != nil {
 		return err
 	}
 
-	l.cachedFS = nil
 	return nil
 }
 
 // Rollback discard transactional or write operations performed on the repositories.
 func (l *Location) Rollback(mode borges.Mode) error {
+	if mode == borges.RWMode {
+		defer func() { l.cachedFS = nil }()
+	}
+
 	if !l.lib.transactional || mode != borges.RWMode {
 		return nil
 	}
@@ -252,7 +268,6 @@ func (l *Location) Rollback(mode borges.Mode) error {
 		return err
 	}
 
-	l.cachedFS = nil
 	return nil
 }
 
@@ -260,12 +275,29 @@ func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
 ) (borges.Repository, error) {
+	var sto storage.Storer
+
 	fs, err := l.getRepoFS(mode)
 	if err != nil {
 		return nil, err
 	}
 
-	return newRepository(id, fs, mode, l.lib.transactional, l)
+	switch mode {
+	case borges.ReadOnlyMode:
+		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+		sto = &util.ReadOnlyStorer{Storer: sto}
+
+	case borges.RWMode:
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, borges.ErrModeNotSupported.New(mode)
+	}
+
+	return newRepository(id, sto, mode, l.lib.transactional, l)
 }
 
 func (l *Location) getRepoFS(mode borges.Mode) (sivafs.SivaFS, error) {

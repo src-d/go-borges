@@ -4,14 +4,10 @@ import (
 	"sync"
 
 	borges "github.com/src-d/go-borges"
-	"github.com/src-d/go-borges/util"
 
-	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 // ErrRepoAlreadyClosed is returned when a repository opened in RW mode was already closed.
@@ -22,7 +18,7 @@ var ErrRepoAlreadyClosed = errors.NewKind("repository % already closed")
 type Repository struct {
 	id            borges.RepositoryID
 	repo          *git.Repository
-	fs            sivafs.SivaFS
+	s             storage.Storer
 	mode          borges.Mode
 	transactional bool
 
@@ -37,17 +33,11 @@ var _ borges.Repository = (*Repository)(nil)
 // newRepository creates a new siva backed Repository.
 func newRepository(
 	id borges.RepositoryID,
-	fs sivafs.SivaFS,
+	sto storage.Storer,
 	m borges.Mode,
 	transactional bool,
 	l *Location,
 ) (*Repository, error) {
-	var sto storage.Storer
-	sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
-	if m == borges.ReadOnlyMode {
-		sto = &util.ReadOnlyStorer{Storer: sto}
-	}
-
 	repo, err := git.Open(sto, nil)
 	if err != nil {
 		if err == git.ErrRepositoryNotExists {
@@ -61,7 +51,7 @@ func newRepository(
 	return &Repository{
 		id:            id,
 		repo:          repo,
-		fs:            fs,
+		s:             sto,
 		mode:          m,
 		transactional: transactional,
 		location:      l,
@@ -85,14 +75,6 @@ func (r *Repository) Mode() borges.Mode {
 
 // Commit implements borges.Repository interface.
 func (r *Repository) Commit() error {
-	if !r.transactional {
-		return borges.ErrNonTransactional.New()
-	}
-
-	if r.mode != borges.RWMode {
-		return nil
-	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -100,35 +82,41 @@ func (r *Repository) Commit() error {
 		return ErrRepoAlreadyClosed.New(r.id)
 	}
 
-	err := r.fs.Sync()
-	if err != nil {
-		return err
+	if !r.transactional {
+		return borges.ErrNonTransactional.New()
 	}
 
-	r.closed = true
+	defer func() { r.closed = true }()
+
+	sto, ok := r.s.(*Storage)
+	if ok {
+		err := sto.Commit()
+		if err != nil {
+			return err
+		}
+	}
+
 	return r.location.Commit(r.mode)
 }
 
 // Close implements borges.Repository interface.
 func (r *Repository) Close() error {
-	if r.closed {
-		return ErrRepoAlreadyClosed.New(r.id)
-	}
-
-	if r.mode != borges.RWMode {
-		r.closed = true
-		return nil
-	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	err := r.fs.Sync()
-	if err != nil {
-		return err
+	if r.closed {
+		return ErrRepoAlreadyClosed.New(r.id)
+	}
+	defer func() { r.closed = true }()
+
+	sto, ok := r.s.(*Storage)
+	if ok {
+		err := sto.Close()
+		if err != nil {
+			return err
+		}
 	}
 
-	r.closed = true
 	return r.location.Rollback(r.mode)
 }
 
