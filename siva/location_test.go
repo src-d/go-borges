@@ -47,6 +47,8 @@ func (s *locationSuite) TestCreate() {
 	} else {
 		require.EqualError(err,
 			borges.ErrNonTransactional.New().Error())
+		err = r.Close()
+		require.NoError(err)
 	}
 
 	iter, err := location.Repositories(borges.RWMode)
@@ -101,6 +103,8 @@ func (s *locationSuite) TestInitExists() {
 	} else {
 		require.EqualError(err,
 			borges.ErrNonTransactional.New().Error())
+		err = r.Close()
+		require.NoError(err)
 	}
 
 	has, err = location.Has("http://github.com/foo/bar")
@@ -234,12 +238,26 @@ func (s *locationSuite) TestGetOrInit() {
 	r, err := location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
-	r.Commit()
+	err = r.Commit()
+	if s.transactional {
+		require.NoError(err)
+	} else {
+		require.True(borges.ErrNonTransactional.Is(err))
+		err = r.Close()
+		require.NoError(err)
+	}
 
 	r, err = location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
-	r.Commit()
+	err = r.Commit()
+	if s.transactional {
+		require.NoError(err)
+	} else {
+		require.True(borges.ErrNonTransactional.Is(err))
+		err = r.Close()
+		require.NoError(err)
+	}
 }
 
 func (s *locationSuite) TestFS() {
@@ -282,6 +300,8 @@ func (s *locationSuite) TestRepositories() {
 		} else {
 			require.EqualError(err,
 				borges.ErrNonTransactional.New().Error())
+			err = e.Close()
+			require.NoError(err)
 		}
 	}
 
