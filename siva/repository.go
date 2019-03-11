@@ -92,6 +92,8 @@ func (r *Repository) Commit() error {
 	if ok {
 		err := sto.Commit()
 		if err != nil {
+			// TODO: log the rollback error
+			_ = r.location.Rollback(r.mode)
 			return err
 		}
 	}
@@ -113,6 +115,8 @@ func (r *Repository) Close() error {
 	if ok {
 		err := sto.Close()
 		if err != nil {
+			// TODO: log rollback error
+			_ = r.location.Rollback(r.mode)
 			return err
 		}
 	}

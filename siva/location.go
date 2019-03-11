@@ -241,15 +241,12 @@ func (l *Location) Commit(mode borges.Mode) error {
 		return nil
 	}
 
-	defer func() {
-		l.cachedFS = nil
-		l.txer.Stop()
-	}()
-
+	defer l.txer.Stop()
 	if err := l.checkpoint.Reset(); err != nil {
 		return err
 	}
 
+	l.cachedFS = nil
 	return nil
 }
 

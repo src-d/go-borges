@@ -2,6 +2,7 @@ package siva
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -273,6 +274,75 @@ func (s *repoSuite) TestTransaction_Timeout() {
 	_, err = loc.Init("http://github.com/foo/baz")
 	require.Error(err)
 	require.True(ErrTransactionTimeout.Is(err))
+}
+
+func (s *repoSuite) TestTransaction_FailedCommit() {
+	if !s.transactional {
+		s.T().SkipNow()
+	}
+	var require = s.Require()
+
+	loc, err := s.lib.AddLocation("test")
+	require.NoError(err)
+
+	r, err := loc.Init("http://github.com/foo/bar")
+	require.NoError(err)
+	require.NotNil(r)
+	err = r.Commit()
+	require.NoError(err)
+
+	ls, ok := loc.(*Location)
+	require.True(ok)
+	stat, err := s.lib.fs.Stat(ls.path)
+	require.NoError(err)
+
+	origSize := stat.Size()
+
+	// produce error in transaction
+	rs, ok := r.(*Repository)
+	require.True(ok)
+	sto, ok := rs.s.(*Storage)
+	require.True(ok)
+	err = sto.Cleanup()
+	require.NoError(err)
+
+	err = r.Commit()
+	require.Error(err)
+
+	stat, err = s.lib.fs.Stat(ls.path)
+	require.NoError(err)
+	require.Equal(origSize, stat.Size())
+}
+
+func (s *repoSuite) TestTransaction_FailedCommitEmpty() {
+	if !s.transactional {
+		s.T().SkipNow()
+	}
+	var require = s.Require()
+
+	loc, err := s.lib.AddLocation("test")
+	require.NoError(err)
+
+	r, err := loc.Init("http://github.com/foo/bar")
+	require.NoError(err)
+	require.NotNil(r)
+
+	// produce error in transaction
+	rs, ok := r.(*Repository)
+	require.True(ok)
+	sto, ok := rs.s.(*Storage)
+	require.True(ok)
+	err = sto.Cleanup()
+	require.NoError(err)
+
+	err = r.Commit()
+	require.Error(err)
+
+	ls, ok := loc.(*Location)
+	require.True(ok)
+
+	_, err = s.lib.fs.Stat(ls.path)
+	require.True(os.IsNotExist(err))
 }
 
 func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
