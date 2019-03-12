@@ -11,7 +11,6 @@ matrix:
     - go: tip
 
 script:
-  - cp Gopkg.testing.toml Gopkg.toml
-  - make godep
+  - make dependencies
   - make test-coverage
   - make codecov

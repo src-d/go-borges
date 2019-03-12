@@ -1,4 +1,0 @@
-[[constraint]]
-  name = "gopkg.in/src-d/go-git.v4"
-  source = "github.com/src-d/go-git"
-  revision = "dcc9f375f4daedfef61e7ff2fbbfd851d42a72d8"
