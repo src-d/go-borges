@@ -26,7 +26,7 @@ For example:
 	loc, _ := library.AddLocation("test")
 	r1, _ := loc.Init("repo1") # the first repo initializes the git repository
 	r1.Commit()
-	r2, := loc.Init("repos2) # the second just adds a new remote
+	r2, _ := loc.Init("repos2") # the second just adds a new remote
 	r2.Commit()
 	loc.Has("repo1") # true
 	loc.Has("repo2") # true

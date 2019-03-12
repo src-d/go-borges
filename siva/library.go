@@ -118,7 +118,6 @@ func (l *Library) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
-// TODO: find if we have to use ".git" suffix for repository ids
 func toRepoID(endpoint string) borges.RepositoryID {
 	name, _ := borges.NewRepositoryID(endpoint)
 	return borges.RepositoryID(strings.TrimSuffix(name.String(), ".git"))
