@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.11.x
+  - tip
+go_import_path: github.com/src-d/go-borges
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+script:
+  - make dependencies
+  - make test-coverage
+  - make codecov
