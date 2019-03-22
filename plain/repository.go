@@ -160,7 +160,7 @@ func (r *Repository) Commit() (err error) {
 	}
 
 	defer ioutil.CheckClose(r, &err)
-	ts, ok := r.Storer.(*transactional.Storage)
+	ts, ok := r.Storer.(transactional.Storage)
 	if !ok {
 		panic("unreachable code")
 	}
