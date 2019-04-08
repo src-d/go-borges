@@ -9,7 +9,9 @@ import (
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	butil "gopkg.in/src-d/go-billy.v4/util"
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-git.v4/storage"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 	"gopkg.in/src-d/go-git.v4/storage/transactional"
@@ -110,7 +112,7 @@ func (s *Storage) Commit() error {
 		return err
 	}
 
-	_, ok := s.Storer.(*transactional.Storage)
+	_, ok := s.Storer.(transactional.Storage)
 	if !ok {
 		return nil
 	}
@@ -134,6 +136,16 @@ func (s *Storage) Commit() error {
 	return nil
 }
 
+// PackfileWriter implements storer.PackfileWriter interface.
+func (s *Storage) PackfileWriter() (io.WriteCloser, error) {
+	p, ok := s.Storer.(storer.PackfileWriter)
+	if !ok {
+		return nil, git.ErrPackedObjectsNotSupported
+	}
+
+	return p.PackfileWriter()
+}
+
 // Close finishes writes to siva file and cleans up temporary storage.
 func (s *Storage) Close() error {
 	defer s.Cleanup()
@@ -148,6 +160,11 @@ func (s *Storage) Cleanup() error {
 // Sync closes the siva file where the storer is writing.
 func (s *Storage) Sync() error {
 	return s.fs.Sync()
+}
+
+// Filesystem returns the filesystem that can be used for writing.
+func (s *Storage) Filesystem() billy.Filesystem {
+	return s.fs
 }
 
 func getSivaFS(

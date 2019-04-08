@@ -7,12 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
-	git "gopkg.in/src-d/go-git.v4"
-
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
+
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/config"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestRepository(t *testing.T) {
@@ -250,6 +253,76 @@ func (s *repoSuite) TestClose_RW() {
 		require.NoError(err)
 		require.Equal(head.Hash(), ref.Hash())
 	}
+}
+
+func (s *repoSuite) TestFilesystem() {
+	var require = s.Require()
+
+	loc, err := s.lib.AddLocation("test")
+	require.NoError(err)
+
+	r, err := loc.Init("http://github.com/foo/bar")
+	require.NoError(err)
+	require.NotNil(r)
+
+	repo := r.R()
+	st, ok := repo.Storer.(*Storage)
+	require.True(ok)
+
+	fs := st.Filesystem()
+	f, err := fs.Create("/refs/tags/tag")
+	require.NoError(err)
+
+	_, err = f.Write([]byte(plumbing.ZeroHash.String()))
+	require.NoError(err)
+
+	err = f.Close()
+	require.NoError(err)
+
+	tag, err := repo.Tag("tag")
+	require.NoError(err)
+	require.Equal(plumbing.ZeroHash, tag.Hash())
+}
+
+func (s *repoSuite) TestPackfileWriter() {
+	var require = s.Require()
+
+	err := fixtures.Init()
+	require.NoError(err)
+	fixture := fixtures.Basic().One()
+	defer fixtures.Clean()
+
+	loc, err := s.lib.AddLocation("test")
+	require.NoError(err)
+
+	r, err := loc.Init("http://github.com/foo/bar")
+	require.NoError(err)
+	require.NotNil(r)
+
+	repo := r.R()
+	remote, err := repo.CreateRemote(&config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{fixture.DotGit().Root()},
+	})
+	require.NoError(err)
+
+	err = remote.Fetch(&git.FetchOptions{})
+	require.NoError(err)
+
+	sto, ok := repo.Storer.(*Storage)
+	require.True(ok, "it's not a siva.Storage")
+	fs := sto.Filesystem()
+
+	files, err := fs.ReadDir("/objects/pack")
+	require.NoError(err)
+	require.Len(files, 2)
+
+	names := []string{files[0].Name(), files[1].Name()}
+	expected := []string{
+		"pack-ca7509c8118d8d2cc0977d9045311a8a627532d6.idx",
+		"pack-ca7509c8118d8d2cc0977d9045311a8a627532d6.pack",
+	}
+	require.ElementsMatch(expected, names)
 }
 
 func (s *repoSuite) TestTransaction_Timeout() {
