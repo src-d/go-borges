@@ -3,6 +3,7 @@ package siva
 import (
 	"os"
 	"strconv"
+	"sync"
 
 	borges "github.com/src-d/go-borges"
 	billy "gopkg.in/src-d/go-billy.v4"
@@ -26,6 +27,7 @@ type checkpoint struct {
 	baseFs  billy.Filesystem
 	path    string
 	persist string
+	mu      sync.RWMutex
 }
 
 // newCheckpoint builds a new Checkpoint.
@@ -67,6 +69,9 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 // Apply applies if necessary the operations on the siva file to
 // leave it in the last correct state the checkpoint keeps.
 func (c *checkpoint) Apply() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.offset > 0 {
 		info, err := c.baseFs.Stat(c.path)
 		if err != nil {
@@ -74,7 +79,7 @@ func (c *checkpoint) Apply() error {
 		}
 
 		if info.Size() == c.offset {
-			return c.Reset()
+			return c.reset()
 		}
 
 		f, err := c.baseFs.Open(c.path)
@@ -94,11 +99,14 @@ func (c *checkpoint) Apply() error {
 		}
 	}
 
-	return c.Reset()
+	return c.reset()
 }
 
 // Save saves the current state of the siva file.
 func (c *checkpoint) Save() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	var size int64
 
 	info, err := c.baseFs.Stat(c.path)
@@ -119,12 +127,32 @@ func (c *checkpoint) Save() error {
 
 // Reset resets the checkpoint.
 func (c *checkpoint) Reset() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.reset()
+}
+
+func (c *checkpoint) reset() error {
 	if err := cleanup(c.baseFs, c.persist); err != nil {
 		return ErrCannotUseCheckpointFile.Wrap(err, c.path)
 	}
 
 	c.offset = -1
 	return nil
+}
+
+// Offset returns the offset of the last good index or 0 if the siva file
+// still does not exist.
+func (c *checkpoint) Offset() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.offset < 0 {
+		return 0
+	}
+
+	return uint64(c.offset)
 }
 
 // cleanup remove the given path from the filesystem but
