@@ -2,7 +2,6 @@ package siva
 
 import (
 	"os"
-	"sync"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
@@ -23,11 +22,9 @@ var ErrMalformedData = errors.NewKind("malformed data")
 type Location struct {
 	id         borges.LocationID
 	path       string
-	cachedFS   sivafs.SivaFS
 	lib        *Library
 	checkpoint *checkpoint
 	txer       *transactioner
-	mu         sync.Mutex
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -57,24 +54,33 @@ func newLocation(
 }
 
 // FS returns a filesystem for the location's siva file.
-func (l *Location) FS() (sivafs.SivaFS, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.cachedFS != nil {
-		return l.cachedFS, nil
+func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
+	if mode == borges.ReadOnlyMode {
+		return sivafs.NewFilesystemWithOptions(
+			l.lib.fs, l.path, memfs.New(),
+			sivafs.SivaFSOptions{
+				UnsafePaths: true,
+				ReadOnly:    true,
+				Offset:      l.checkpoint.Offset(),
+			},
+		)
 	}
 
 	if err := l.checkpoint.Apply(); err != nil {
 		return nil, err
 	}
 
-	sfs, err := sivafs.NewFilesystem(l.lib.fs, l.path, memfs.New())
+	sfs, err := sivafs.NewFilesystemWithOptions(
+		l.lib.fs, l.path, memfs.New(),
+		sivafs.SivaFSOptions{
+			UnsafePaths: true,
+			ReadOnly:    mode == borges.ReadOnlyMode,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	l.cachedFS = sfs
 	return sfs, nil
 }
 
@@ -143,16 +149,14 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 
 // Has implements the borges.Location interface.
 func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
-	if l.cachedFS == nil {
-		// Return false when the siva file does not exist. If repository is
-		// called it will create a new siva file.
-		_, err := l.lib.fs.Stat(l.path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return false, nil
-			}
-			return false, err
+	// Return false when the siva file does not exist. If repository is
+	// called it will create a new siva file.
+	_, err := l.lib.fs.Stat(l.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
 		}
+		return false, err
 	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
@@ -190,24 +194,30 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
 	var remotes []*config.RemoteConfig
 
-	if l.cachedFS == nil {
-		// Return false when the siva file does not exist. If repository is
-		// called it will create a new siva file.
-		_, err := l.lib.fs.Stat(l.path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return &repositoryIterator{
-					mode:    mode,
-					loc:     l,
-					pos:     0,
-					remotes: remotes,
-				}, nil
-			}
-			return nil, err
+	// Return false when the siva file does not exist. If repository is
+	// called it will create a new siva file.
+	_, err := l.lib.fs.Stat(l.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &repositoryIterator{
+				mode:    mode,
+				loc:     l,
+				pos:     0,
+				remotes: remotes,
+			}, nil
 		}
+		return nil, err
 	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
+	if borges.ErrLocationNotExists.Is(err) {
+		return &repositoryIterator{
+			mode:    mode,
+			loc:     l,
+			pos:     0,
+			remotes: remotes,
+		}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -243,16 +253,11 @@ func (l *Location) Commit(mode borges.Mode) error {
 		return err
 	}
 
-	l.cachedFS = nil
 	return nil
 }
 
 // Rollback discard transactional or write operations performed on the repositories.
 func (l *Location) Rollback(mode borges.Mode) error {
-	if mode == borges.RWMode {
-		defer func() { l.cachedFS = nil }()
-	}
-
 	if !l.lib.transactional || mode != borges.RWMode {
 		return nil
 	}
@@ -296,14 +301,20 @@ func (l *Location) repository(
 
 func (l *Location) getRepoFS(mode borges.Mode) (sivafs.SivaFS, error) {
 	if !l.lib.transactional || mode != borges.RWMode {
-		return l.FS()
+		return l.FS(mode)
 	}
 
 	if err := l.txer.Start(); err != nil {
 		return nil, err
 	}
 
-	fs, err := sivafs.NewFilesystem(l.lib.fs, l.path, memfs.New())
+	fs, err := sivafs.NewFilesystemWithOptions(
+		l.lib.fs, l.path, memfs.New(),
+		sivafs.SivaFSOptions{
+			UnsafePaths: true,
+			ReadOnly:    false,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

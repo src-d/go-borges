@@ -11,7 +11,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190211182817-74369b46fc67 // indirect
 	golang.org/x/net v0.0.0-20190206173232-65e2d4e15006 // indirect
 	golang.org/x/sys v0.0.0-20190209173611-3b5209105503 // indirect
-	gopkg.in/src-d/go-billy-siva.v4 v4.5.0
+	gopkg.in/src-d/go-billy-siva.v4 v4.5.1
 	gopkg.in/src-d/go-billy.v4 v4.3.0
 	gopkg.in/src-d/go-errors.v1 v1.0.0
 	gopkg.in/src-d/go-git-fixtures.v3 v3.3.0

@@ -269,7 +269,7 @@ func (s *locationSuite) TestFS() {
 	loc, ok := location.(*Location)
 	require.True(ok)
 
-	fs, err := loc.FS()
+	fs, err := loc.FS(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	stat, err := fs.Stat("objects/pack/pack-bb25e08fc37bda477660be0609a356f6d1e65ffc.pack")
