@@ -135,6 +135,7 @@ func (s *locationSuite) TestAddLocation() {
 	r, err := l.Init(repoID)
 	require.NoError(err)
 	require.Equal(l.ID(), r.LocationID())
+
 	_, err = r.R().CreateTag("test", plumbing.ZeroHash, nil)
 	require.NoError(err)
 	if s.transactional {
@@ -158,7 +159,7 @@ func (s *locationSuite) TestAddLocation() {
 	r, err = l.Get(repoID, borges.RWMode)
 	require.NoError(err)
 	if s.transactional {
-		require.NoError(r.Commit())
+		require.True(ErrEmptyCommit.Is(r.Commit()))
 	} else {
 		require.NoError(r.Close())
 	}
@@ -166,7 +167,7 @@ func (s *locationSuite) TestAddLocation() {
 	r, err = s.lib.Get(repoID, borges.RWMode)
 	require.NoError(err)
 	if s.transactional {
-		require.NoError(r.Commit())
+		require.True(ErrEmptyCommit.Is(r.Commit()))
 	} else {
 		require.NoError(r.Close())
 	}
@@ -252,7 +253,7 @@ func (s *locationSuite) TestGetOrInit() {
 	require.NotNil(r)
 	err = r.Commit()
 	if s.transactional {
-		require.NoError(err)
+		require.True(ErrEmptyCommit.Is(err))
 	} else {
 		require.True(borges.ErrNonTransactional.Is(err))
 		err = r.Close()
@@ -314,6 +315,5 @@ func (s *locationSuite) TestRepositories() {
 		return r.Close()
 	})
 	require.NoError(err)
-
 	require.ElementsMatch(repoIDs, names)
 }

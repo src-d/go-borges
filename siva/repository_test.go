@@ -15,7 +15,6 @@ import (
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestRepository(t *testing.T) {
@@ -269,19 +268,31 @@ func (s *repoSuite) TestFilesystem() {
 	st, ok := repo.Storer.(*Storage)
 	require.True(ok)
 
+	_, err = repo.Remote("remote-test")
+	require.EqualError(err, git.ErrRemoteNotFound.Error())
+
+	expectedConf := config.NewConfig()
+	expectedConf.Remotes["remote-test"] = &config.RemoteConfig{
+		Fetch: []config.RefSpec{"+refs/heads/*:refs/remotes/remote-test/*"},
+		Name:  "remote-test",
+		URLs:  []string{"git@github.com:baz/bar.git"},
+	}
+
 	fs := st.Filesystem()
-	f, err := fs.Create("/refs/tags/tag")
+	f, err := fs.OpenFile("config", os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
 	require.NoError(err)
 
-	_, err = f.Write([]byte(plumbing.ZeroHash.String()))
+	buf, err := expectedConf.Marshal()
+	require.NoError(err)
+
+	_, err = f.Write(buf)
 	require.NoError(err)
 
 	err = f.Close()
 	require.NoError(err)
 
-	tag, err := repo.Tag("tag")
+	_, err = repo.Remote("remote-test")
 	require.NoError(err)
-	require.Equal(plumbing.ZeroHash, tag.Hash())
 }
 
 func (s *repoSuite) TestPackfileWriter() {
@@ -409,7 +420,7 @@ func (s *repoSuite) TestTransaction_FailedCommitEmpty() {
 	require.NoError(err)
 
 	err = r.Commit()
-	require.Error(err)
+	require.True(ErrEmptyCommit.Is(err))
 
 	ls, ok := loc.(*Location)
 	require.True(ok)

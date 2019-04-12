@@ -43,6 +43,7 @@ func newRepository(
 		if err == git.ErrRepositoryNotExists {
 			repo, err = git.Init(sto, nil)
 		}
+
 		if err != nil {
 			return nil, borges.ErrLocationNotExists.Wrap(err, id)
 		}
