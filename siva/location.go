@@ -4,7 +4,6 @@ import (
 	"os"
 
 	borges "github.com/src-d/go-borges"
-	"github.com/src-d/go-borges/util"
 
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
@@ -167,13 +166,13 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 		}
 		return false, err
 	}
+
 	config, err := repo.R().Config()
 	if err != nil {
 		return false, err
 	}
 
 	name := toRepoID(repoID.String())
-
 	for _, r := range config.Remotes {
 		id := toRepoID(r.Name)
 		if id == name {
@@ -215,12 +214,14 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 			mode:    mode,
 			loc:     l,
 			pos:     0,
-			remotes: remotes,
+			remotes: nil,
 		}, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	cfg, err := repo.R().Config()
 	if err != nil {
 		return nil, err
@@ -275,53 +276,38 @@ func (l *Location) repository(
 	mode borges.Mode,
 ) (borges.Repository, error) {
 	var sto storage.Storer
-
-	fs, err := l.getRepoFS(mode)
-	if err != nil {
-		return nil, err
-	}
-
 	switch mode {
 	case borges.ReadOnlyMode:
-		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
-		sto = &util.ReadOnlyStorer{Storer: sto}
-
-	case borges.RWMode:
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		fs, err := l.FS(mode)
 		if err != nil {
 			return nil, err
 		}
 
+		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+		sto = NewReadOnlyStorer(sto)
+	case borges.RWMode:
+		if l.lib.transactional {
+			if err := l.txer.Start(); err != nil {
+				return nil, err
+			}
+
+			if err := l.checkpoint.Save(); err != nil {
+				return nil, err
+			}
+		}
+
+		var err error
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		if err != nil {
+			if l.lib.transactional {
+				l.txer.Stop()
+			}
+
+			return nil, err
+		}
 	default:
 		return nil, borges.ErrModeNotSupported.New(mode)
 	}
 
 	return newRepository(id, sto, mode, l.lib.transactional, l)
-}
-
-func (l *Location) getRepoFS(mode borges.Mode) (sivafs.SivaFS, error) {
-	if !l.lib.transactional || mode != borges.RWMode {
-		return l.FS(mode)
-	}
-
-	if err := l.txer.Start(); err != nil {
-		return nil, err
-	}
-
-	fs, err := sivafs.NewFilesystemWithOptions(
-		l.lib.fs, l.path, memfs.New(),
-		sivafs.SivaFSOptions{
-			UnsafePaths: true,
-			ReadOnly:    false,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := l.checkpoint.Save(); err != nil {
-		return nil, err
-	}
-
-	return fs, nil
 }

@@ -63,7 +63,7 @@ func TestRegistryNoCache(t *testing.T) {
 	require.Equal(point(loc1), point(loc2))
 
 	err = r.Commit()
-	require.NoError(err)
+	require.True(ErrEmptyCommit.Is(err))
 
 	loc2, err = lib.Location("foo-bar")
 	require.NoError(err)
