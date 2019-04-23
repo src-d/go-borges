@@ -285,6 +285,9 @@ func (l *Location) repository(
 
 		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
 		sto = NewReadOnlyStorer(sto)
+		if id != "" && l.lib.rooted {
+			sto = NewRootedStorage(sto, string(id))
+		}
 	case borges.RWMode:
 		if l.lib.transactional {
 			if err := l.txer.Start(); err != nil {
@@ -297,7 +300,7 @@ func (l *Location) repository(
 		}
 
 		var err error
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional, "")
 		if err != nil {
 			if l.lib.transactional {
 				l.txer.Stop()
@@ -305,6 +308,11 @@ func (l *Location) repository(
 
 			return nil, err
 		}
+
+		if id != "" && l.lib.rooted {
+			sto = NewRootedStorage(sto, string(id))
+		}
+
 	default:
 		return nil, borges.ErrModeNotSupported.New(mode)
 	}

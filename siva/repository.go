@@ -89,7 +89,7 @@ func (r *Repository) Commit() error {
 
 	defer func() { r.closed = true }()
 
-	sto, ok := r.s.(*Storage)
+	sto, ok := r.s.(Committer)
 	if ok {
 		err := sto.Commit()
 		if err != nil {
@@ -112,7 +112,7 @@ func (r *Repository) Close() error {
 	}
 	defer func() { r.closed = true }()
 
-	sto, ok := r.s.(*Storage)
+	sto, ok := r.s.(Committer)
 	if ok {
 		err := sto.Close()
 		if err != nil {
