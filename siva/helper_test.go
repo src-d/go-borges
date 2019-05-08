@@ -17,17 +17,17 @@ import (
 
 const testDir = "../_testdata/siva"
 
-func setupMemFS(t *testing.T) (billy.Filesystem, []string) {
+func setupMemFS(t *testing.T, bucket int) (billy.Filesystem, []string) {
 	t.Helper()
-	return setupFS(t, true)
+	return setupFS(t, true, bucket)
 }
 
-func setupOSFS(t *testing.T) (billy.Filesystem, []string) {
+func setupOSFS(t *testing.T, bucket int) (billy.Filesystem, []string) {
 	t.Helper()
-	return setupFS(t, false)
+	return setupFS(t, false, bucket)
 }
 
-func setupFS(t *testing.T, inMem bool) (billy.Filesystem, []string) {
+func setupFS(t *testing.T, inMem bool, bucket int) (billy.Filesystem, []string) {
 	t.Helper()
 	require := require.New(t)
 
@@ -55,12 +55,27 @@ func setupFS(t *testing.T, inMem bool) (billy.Filesystem, []string) {
 		fs = osfs.New(path)
 	}
 
-	for _, siva := range sivas {
-		path := filepath.Join(testDir, siva)
+	for _, testSiva := range sivas {
+		path := filepath.Join(testDir, testSiva)
 		data, err := ioutil.ReadFile(path)
 		require.NoError(err)
+
+		siva := testSiva
+		id := toLocID(siva)
+		siva = buildSivaPath(id, bucket)
 		err = util.WriteFile(fs, siva, data, 0666)
 		require.NoError(err)
+
+		bucketNoise := []int{0, 1, 2, 100}
+		for _, b := range bucketNoise {
+			if b == bucket {
+				continue
+			}
+
+			altSiva := buildSivaPath(id, b)
+			err := util.WriteFile(fs, altSiva, []byte{}, 0666)
+			require.NoError(err)
+		}
 	}
 
 	return fs, sivas
@@ -74,7 +89,7 @@ func setupLibrary(
 	t.Helper()
 	var require = require.New(t)
 
-	fs, _ := setupMemFS(t)
+	fs, _ := setupMemFS(t, opts.Bucket)
 	lib, err := NewLibrary(id, fs, opts)
 	require.NoError(err)
 

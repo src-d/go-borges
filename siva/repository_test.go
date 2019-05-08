@@ -436,7 +436,7 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 	// raise a panic.
 	var require = require.New(t)
 
-	fs, _ := setupOSFS(t)
+	fs, _ := setupOSFS(t, 0)
 
 	lib, err := NewLibrary("test", fs, LibraryOptions{Transactional: true})
 	require.NoError(err)
