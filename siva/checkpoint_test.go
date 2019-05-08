@@ -57,7 +57,7 @@ var _ suite.SetupTestSuite = (*checkpointSuite)(nil)
 var _ suite.TearDownTestSuite = (*checkpointSuite)(nil)
 
 func (s *checkpointSuite) SetupTest() {
-	s.fs, s.sivas = setupMemFS(s.T())
+	s.fs, s.sivas = setupMemFS(s.T(), 0)
 }
 
 func (s *checkpointSuite) TearDownTest() {

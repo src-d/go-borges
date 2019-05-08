@@ -13,18 +13,22 @@ import (
 func TestLocation(t *testing.T) {
 	suite.Run(t, &locationSuite{transactional: false})
 	suite.Run(t, &locationSuite{transactional: true})
+	suite.Run(t, &locationSuite{transactional: false, bucket: 2})
+	suite.Run(t, &locationSuite{transactional: true, bucket: 2})
 }
 
 type locationSuite struct {
 	suite.Suite
 
 	transactional bool
+	bucket        int
 	lib           *Library
 }
 
 func (s *locationSuite) SetupTest() {
 	s.lib = setupLibrary(s.T(), "test", LibraryOptions{
 		Transactional: s.transactional,
+		Bucket:        s.bucket,
 	})
 }
 

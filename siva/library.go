@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type Library struct {
 	transactional bool
 	timeout       time.Duration
 	locReg        *locationRegistry
+	bucket        int
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -41,6 +43,8 @@ type LibraryOptions struct {
 	RegistryCache int
 	// TempFS is the temporary filesystem to do transactions and write files.
 	TempFS billy.Filesystem
+	// Bucket level to use to search and create siva files.
+	Bucket int
 }
 
 var _ borges.Library = (*Library)(nil)
@@ -81,6 +85,7 @@ func NewLibrary(
 		transactional: ops.Transactional,
 		timeout:       timeout,
 		locReg:        lr,
+		bucket:        ops.Bucket,
 	}, nil
 }
 
@@ -186,7 +191,7 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 		return loc, nil
 	}
 
-	path := fmt.Sprintf("%s.siva", id)
+	path := buildSivaPath(id, l.bucket)
 	loc, err := newLocation(id, l, path, create)
 	if err != nil {
 		return nil, err
@@ -195,6 +200,23 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 	l.locReg.Add(loc)
 
 	return loc, nil
+}
+
+func buildSivaPath(id borges.LocationID, bucket int) string {
+	siva := fmt.Sprintf("%s.siva", id)
+	if bucket == 0 {
+		return siva
+	}
+
+	r := []rune(id)
+	var bucketDir string
+	if len(r) < bucket {
+		bucketDir = string(id) + strings.Repeat("-", bucket-len(r))
+	} else {
+		bucketDir = string(r[:bucket])
+	}
+
+	return filepath.Join(bucketDir, siva)
 }
 
 // Locations implements borges.Library interface.
@@ -210,13 +232,15 @@ func (l *Library) Locations() (borges.LocationIterator, error) {
 func (l *Library) locations() ([]borges.Location, error) {
 	var locs []borges.Location
 
-	sivas, err := butil.Glob(l.fs, "*.siva")
+	pattern := filepath.Join(strings.Repeat("?", l.bucket), "*.siva")
+	sivas, err := butil.Glob(l.fs, pattern)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, s := range sivas {
-		loc, err := l.Location(toLocID(s))
+		siva := filepath.Base(s)
+		loc, err := l.Location(toLocID(siva))
 		if err != nil {
 			continue
 		}
