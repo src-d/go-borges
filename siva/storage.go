@@ -90,7 +90,6 @@ func NewStorage(
 	path string,
 	tmp billy.Filesystem,
 	transaction bool,
-	repoID string,
 ) (*Storage, error) {
 	rootDir, err := butil.TempDir(tmp, "/", "go-borges")
 	if err != nil {
@@ -127,10 +126,6 @@ func NewStorage(
 	}
 
 	if !transaction {
-		if repoID != "" {
-			baseStorage = NewRootedStorage(baseStorage, repoID)
-		}
-
 		return &Storage{
 			Storer:           baseStorage,
 			ReferenceStorage: refSto,
@@ -157,9 +152,6 @@ func NewStorage(
 
 	var sto storage.Storer
 	sto = transactional.NewStorage(baseStorage, transactionStorage)
-	if repoID != "" {
-		sto = NewRootedStorage(sto, repoID)
-	}
 
 	return &Storage{
 		Storer:           sto,

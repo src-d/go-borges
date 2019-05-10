@@ -150,6 +150,13 @@ func TestRootedSetReference(t *testing.T) {
 }
 
 func TestRootedIterateObjects(t *testing.T) {
+	testRootedIterators(t, borges.ReadOnlyMode)
+	testRootedIterators(t, borges.RWMode)
+}
+
+func testRootedIterators(t *testing.T, mode borges.Mode) {
+	t.Helper()
+
 	options := LibraryOptions{
 		RootedRepo: true,
 	}
@@ -289,7 +296,7 @@ func TestRootedIterateObjects(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			id := borges.RepositoryID(test.name)
-			repo, err := lib.Get(id, borges.ReadOnlyMode)
+			repo, err := lib.Get(id, mode)
 			require.NoError(t, err)
 			defer repo.Close()
 
@@ -308,7 +315,7 @@ func TestRootedIterateObjects(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			require.Equal(t, test.commits, commits,
+			require.ElementsMatch(t, test.commits, commits,
 				"the number of commits is incorrect")
 
 			// trees
@@ -325,7 +332,7 @@ func TestRootedIterateObjects(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			require.Equal(t, test.trees, trees,
+			require.ElementsMatch(t, test.trees, trees,
 				"the number of trees is incorrect")
 
 			// blobs
@@ -342,7 +349,7 @@ func TestRootedIterateObjects(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			require.Equal(t, test.blobs, blobs,
+			require.ElementsMatch(t, test.blobs, blobs,
 				"the number of blobs is incorrect")
 		})
 	}

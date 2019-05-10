@@ -300,7 +300,7 @@ func (l *Location) repository(
 		}
 
 		var err error
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional, "")
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
 		if err != nil {
 			if l.lib.transactional {
 				l.txer.Stop()
