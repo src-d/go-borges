@@ -61,8 +61,12 @@ func (s *ReadOnlyStorer) Reference(name plumbing.ReferenceName) (*plumbing.Refer
 	), nil
 }
 
+// Committer interface has transactional Commit and Close methods for a storer.
 type Committer interface {
+	// Commit applies the changes to a storer if it's in transactional mode.
 	Commit() error
+	// Close signals the end of usage of a storer. If it's in transactional
+	// mode this means rollback.
 	Close() error
 }
 
