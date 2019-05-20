@@ -26,6 +26,7 @@ type Library struct {
 	fs            billy.Filesystem
 	tmp           billy.Filesystem
 	transactional bool
+	rooted        bool
 	timeout       time.Duration
 	locReg        *locationRegistry
 	bucket        int
@@ -45,6 +46,9 @@ type LibraryOptions struct {
 	TempFS billy.Filesystem
 	// Bucket level to use to search and create siva files.
 	Bucket int
+	// RootedRepo makes the repository show only the references for the remote
+	// named with the repository ID.
+	RootedRepo bool
 }
 
 var _ borges.Library = (*Library)(nil)
@@ -83,6 +87,7 @@ func NewLibrary(
 		fs:            fs,
 		tmp:           tmp,
 		transactional: ops.Transactional,
+		rooted:        ops.RootedRepo,
 		timeout:       timeout,
 		locReg:        lr,
 		bucket:        ops.Bucket,
