@@ -15,6 +15,7 @@ import (
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	butil "gopkg.in/src-d/go-billy.v4/util"
 	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 // ErrLocationExists when the location to be created already exists.
@@ -30,6 +31,8 @@ type Library struct {
 	timeout       time.Duration
 	locReg        *locationRegistry
 	bucket        int
+
+	options LibraryOptions
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -49,6 +52,12 @@ type LibraryOptions struct {
 	// RootedRepo makes the repository show only the references for the remote
 	// named with the repository ID.
 	RootedRepo bool
+	// Cache specifies the shared cache used in repositories. If not defined
+	// a new default cache will be created for each repository.
+	Cache cache.Object
+	// Performance enables performance options in read only git repositories
+	// (ExclusiveAccess and KeepDescriptors).
+	Performance bool
 }
 
 var _ borges.Library = (*Library)(nil)

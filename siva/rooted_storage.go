@@ -46,7 +46,7 @@ func (r *RootedStorage) Commit() error {
 
 // Close implements Committer interface.
 func (r *RootedStorage) Close() error {
-	c, ok := r.Storer.(Committer)
+	c, ok := r.Storer.(io.Closer)
 	if ok {
 		return c.Close()
 	}

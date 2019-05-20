@@ -271,6 +271,14 @@ func (l *Location) Rollback(mode borges.Mode) error {
 	return nil
 }
 
+func (l *Location) cache() cache.Object {
+	if l.lib.options.Cache != nil {
+		return l.lib.options.Cache
+	}
+
+	return cache.NewObjectLRUDefault()
+}
+
 func (l *Location) repository(
 	id borges.RepositoryID,
 	mode borges.Mode,
@@ -283,11 +291,20 @@ func (l *Location) repository(
 			return nil, err
 		}
 
-		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+		gitStorerOptions := filesystem.Options{}
+		if l.lib.options.Performance {
+			gitStorerOptions = filesystem.Options{
+				ExclusiveAccess: true,
+				KeepDescriptors: true,
+			}
+		}
+
+		sto = filesystem.NewStorageWithOptions(fs, l.cache(), gitStorerOptions)
 		sto = NewReadOnlyStorer(sto)
 		if id != "" && l.lib.rooted {
 			sto = NewRootedStorage(sto, string(id))
 		}
+
 	case borges.RWMode:
 		if l.lib.transactional {
 			if err := l.txer.Start(); err != nil {
@@ -300,7 +317,8 @@ func (l *Location) repository(
 		}
 
 		var err error
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional,
+			l.cache())
 		if err != nil {
 			if l.lib.transactional {
 				l.txer.Stop()
