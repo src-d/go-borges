@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"io"
 	"sync"
 
 	borges "github.com/src-d/go-borges"
@@ -112,7 +113,7 @@ func (r *Repository) Close() error {
 	}
 	defer func() { r.closed = true }()
 
-	sto, ok := r.s.(Committer)
+	sto, ok := r.s.(io.Closer)
 	if ok {
 		err := sto.Close()
 		if err != nil {

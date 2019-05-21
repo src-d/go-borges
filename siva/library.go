@@ -15,6 +15,7 @@ import (
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	butil "gopkg.in/src-d/go-billy.v4/util"
 	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 // ErrLocationExists when the location to be created already exists.
@@ -22,14 +23,12 @@ var ErrLocationExists = errors.NewKind("location %s already exists")
 
 // Library represents a borges.Library implementation based on siva files.
 type Library struct {
-	id            borges.LibraryID
-	fs            billy.Filesystem
-	tmp           billy.Filesystem
-	transactional bool
-	rooted        bool
-	timeout       time.Duration
-	locReg        *locationRegistry
-	bucket        int
+	id     borges.LibraryID
+	fs     billy.Filesystem
+	tmp    billy.Filesystem
+	locReg *locationRegistry
+
+	options LibraryOptions
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -49,6 +48,12 @@ type LibraryOptions struct {
 	// RootedRepo makes the repository show only the references for the remote
 	// named with the repository ID.
 	RootedRepo bool
+	// Cache specifies the shared cache used in repositories. If not defined
+	// a new default cache will be created for each repository.
+	Cache cache.Object
+	// Performance enables performance options in read only git repositories
+	// (ExclusiveAccess and KeepDescriptors).
+	Performance bool
 }
 
 var _ borges.Library = (*Library)(nil)
@@ -67,9 +72,8 @@ func NewLibrary(
 		return nil, err
 	}
 
-	timeout := ops.Timeout
-	if timeout == 0 {
-		timeout = txTimeout
+	if ops.Timeout == 0 {
+		ops.Timeout = txTimeout
 	}
 
 	tmp := ops.TempFS
@@ -83,14 +87,11 @@ func NewLibrary(
 	}
 
 	return &Library{
-		id:            borges.LibraryID(id),
-		fs:            fs,
-		tmp:           tmp,
-		transactional: ops.Transactional,
-		rooted:        ops.RootedRepo,
-		timeout:       timeout,
-		locReg:        lr,
-		bucket:        ops.Bucket,
+		id:      borges.LibraryID(id),
+		fs:      fs,
+		tmp:     tmp,
+		locReg:  lr,
+		options: ops,
 	}, nil
 }
 
@@ -196,7 +197,7 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 		return loc, nil
 	}
 
-	path := buildSivaPath(id, l.bucket)
+	path := buildSivaPath(id, l.options.Bucket)
 	loc, err := newLocation(id, l, path, create)
 	if err != nil {
 		return nil, err
@@ -237,7 +238,7 @@ func (l *Library) Locations() (borges.LocationIterator, error) {
 func (l *Library) locations() ([]borges.Location, error) {
 	var locs []borges.Location
 
-	pattern := filepath.Join(strings.Repeat("?", l.bucket), "*.siva")
+	pattern := filepath.Join(strings.Repeat("?", l.options.Bucket), "*.siva")
 	sivas, err := butil.Glob(l.fs, pattern)
 	if err != nil {
 		return nil, err

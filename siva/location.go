@@ -48,7 +48,7 @@ func newLocation(
 		checkpoint: cp,
 	}
 
-	loc.txer = newTransactioner(loc, lib.locReg, lib.timeout)
+	loc.txer = newTransactioner(loc, lib.locReg, lib.options.Timeout)
 	return loc, nil
 }
 
@@ -241,7 +241,7 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 
 // Commit persists transactional or write operations performed on the repositories.
 func (l *Location) Commit(mode borges.Mode) error {
-	if !l.lib.transactional {
+	if !l.lib.options.Transactional {
 		return borges.ErrNonTransactional.New()
 	}
 
@@ -259,7 +259,7 @@ func (l *Location) Commit(mode borges.Mode) error {
 
 // Rollback discard transactional or write operations performed on the repositories.
 func (l *Location) Rollback(mode borges.Mode) error {
-	if !l.lib.transactional || mode != borges.RWMode {
+	if !l.lib.options.Transactional || mode != borges.RWMode {
 		return nil
 	}
 
@@ -269,6 +269,14 @@ func (l *Location) Rollback(mode borges.Mode) error {
 	}
 
 	return nil
+}
+
+func (l *Location) cache() cache.Object {
+	if l.lib.options.Cache != nil {
+		return l.lib.options.Cache
+	}
+
+	return cache.NewObjectLRUDefault()
 }
 
 func (l *Location) repository(
@@ -283,13 +291,22 @@ func (l *Location) repository(
 			return nil, err
 		}
 
-		sto = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+		gitStorerOptions := filesystem.Options{}
+		if l.lib.options.Performance {
+			gitStorerOptions = filesystem.Options{
+				ExclusiveAccess: true,
+				KeepDescriptors: true,
+			}
+		}
+
+		sto = filesystem.NewStorageWithOptions(fs, l.cache(), gitStorerOptions)
 		sto = NewReadOnlyStorer(sto)
-		if id != "" && l.lib.rooted {
+		if id != "" && l.lib.options.RootedRepo {
 			sto = NewRootedStorage(sto, string(id))
 		}
+
 	case borges.RWMode:
-		if l.lib.transactional {
+		if l.lib.options.Transactional {
 			if err := l.txer.Start(); err != nil {
 				return nil, err
 			}
@@ -300,16 +317,17 @@ func (l *Location) repository(
 		}
 
 		var err error
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp, l.lib.transactional)
+		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp,
+			l.lib.options.Transactional, l.cache())
 		if err != nil {
-			if l.lib.transactional {
+			if l.lib.options.Transactional {
 				l.txer.Stop()
 			}
 
 			return nil, err
 		}
 
-		if id != "" && l.lib.rooted {
+		if id != "" && l.lib.options.RootedRepo {
 			sto = NewRootedStorage(sto, string(id))
 		}
 
@@ -317,5 +335,5 @@ func (l *Location) repository(
 		return nil, borges.ErrModeNotSupported.New(mode)
 	}
 
-	return newRepository(id, sto, mode, l.lib.transactional, l)
+	return newRepository(id, sto, mode, l.lib.options.Transactional, l)
 }

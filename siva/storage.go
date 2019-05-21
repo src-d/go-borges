@@ -61,6 +61,15 @@ func (s *ReadOnlyStorer) Reference(name plumbing.ReferenceName) (*plumbing.Refer
 	), nil
 }
 
+// Close implements io.Closer interface.
+func (s *ReadOnlyStorer) Close() error {
+	if c, ok := s.ReadOnlyStorer.Storer.(io.Closer); ok {
+		return c.Close()
+	}
+
+	return nil
+}
+
 // Committer interface has transactional Commit and Close methods for a storer.
 type Committer interface {
 	// Commit applies the changes to a storer if it's in transactional mode.
@@ -94,6 +103,7 @@ func NewStorage(
 	path string,
 	tmp billy.Filesystem,
 	transaction bool,
+	cache cache.Object,
 ) (*Storage, error) {
 	rootDir, err := butil.TempDir(tmp, "/", "go-borges")
 	if err != nil {
@@ -110,15 +120,13 @@ func NewStorage(
 		return nil, err
 	}
 
-	c := cache.NewObjectLRUDefault()
-
 	baseFS, err := getSivaFS(base, path, rootFS, baseSivaName)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
 
-	var baseStorage storage.Storer = filesystem.NewStorage(baseFS, c)
+	var baseStorage storage.Storer = filesystem.NewStorage(baseFS, cache)
 	refIter, err := baseStorage.IterReferences()
 	if err != nil {
 		return nil, err
@@ -151,8 +159,7 @@ func NewStorage(
 		cleanup()
 		return nil, err
 	}
-
-	transactionStorage := filesystem.NewStorage(transactionFS, c)
+	transactionStorage := filesystem.NewStorage(transactionFS, cache)
 
 	var sto storage.Storer
 	sto = transactional.NewStorage(baseStorage, transactionStorage)
@@ -175,6 +182,13 @@ func NewStorage(
 // closed.
 func (s *Storage) Commit() error {
 	defer s.Cleanup()
+
+	if c, ok := s.Storer.(io.Closer); ok {
+		err := c.Close()
+		if err != nil {
+			return err
+		}
+	}
 
 	if err := s.PackRefs(); err != nil {
 		return err
@@ -226,6 +240,13 @@ func (s *Storage) PackfileWriter() (io.WriteCloser, error) {
 
 // Close finishes writes to siva file and cleans up temporary storage.
 func (s *Storage) Close() (err error) {
+	if c, ok := s.Storer.(io.Closer); ok {
+		err := c.Close()
+		if err != nil {
+			return err
+		}
+	}
+
 	if pErr := s.PackRefs(); pErr != nil {
 		err = pErr
 	}
