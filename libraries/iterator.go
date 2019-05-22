@@ -18,7 +18,7 @@ type repoIter struct {
 
 var _ borges.RepositoryIterator = (*repoIter)(nil)
 
-// Next implementes the borges.RepositoryIterator interface.
+// Next implements the borges.RepositoryIterator interface.
 func (i *repoIter) Next() (borges.Repository, error) {
 	if len(i.iters) == 0 {
 		return nil, io.EOF
@@ -37,7 +37,7 @@ func (i *repoIter) Next() (borges.Repository, error) {
 	return repo, nil
 }
 
-// ForEach implementes the borges.RepositoryIterator interface.
+// ForEach implements the borges.RepositoryIterator interface.
 func (i *repoIter) ForEach(cb func(borges.Repository) error) error {
 	for _, iter := range i.iters {
 		if err := util.ForEachRepositoryIterator(iter, cb); err != nil {
@@ -48,7 +48,7 @@ func (i *repoIter) ForEach(cb func(borges.Repository) error) error {
 	return nil
 }
 
-// Close implementes the borges.RepositoryIterator interface.
+// Close implements the borges.RepositoryIterator interface.
 func (i *repoIter) Close() {
 	for _, iter := range i.iters {
 		iter.Close()
@@ -66,7 +66,7 @@ type locationIter struct {
 
 var _ borges.LocationIterator = (*locationIter)(nil)
 
-// Next implementes the borges.LocationIterator interface.
+// Next implements the borges.LocationIterator interface.
 func (i *locationIter) Next() (borges.Location, error) {
 	if len(i.iters) == 0 {
 		return nil, io.EOF
@@ -85,7 +85,7 @@ func (i *locationIter) Next() (borges.Location, error) {
 	return loc, nil
 }
 
-// ForEach implementes the borges.LocationIterator interface.
+// ForEach implements the borges.LocationIterator interface.
 func (i *locationIter) ForEach(cb func(borges.Location) error) error {
 	for _, iter := range i.iters {
 		if err := util.ForEachLocatorIterator(iter, cb); err != nil {
@@ -96,7 +96,7 @@ func (i *locationIter) ForEach(cb func(borges.Location) error) error {
 	return nil
 }
 
-// Close implementes the borges.LocationIterator interface.
+// Close implements the borges.LocationIterator interface.
 func (i *locationIter) Close() {
 	for _, iter := range i.iters {
 		iter.Close()
@@ -114,7 +114,7 @@ type libIter struct {
 
 var _ borges.LibraryIterator = (*libIter)(nil)
 
-// Next implementes the borges.LibraryIterator interface.
+// Next implements the borges.LibraryIterator interface.
 func (i *libIter) Next() (borges.Library, error) {
 	if len(i.iters) == 0 {
 		return nil, io.EOF
@@ -133,7 +133,7 @@ func (i *libIter) Next() (borges.Library, error) {
 	return lib, nil
 }
 
-// ForEach implementes the borges.LibraryIterator interface.
+// ForEach implements the borges.LibraryIterator interface.
 func (i *libIter) ForEach(cb func(borges.Library) error) error {
 	for _, iter := range i.iters {
 		if err := util.ForEachLibraryIterator(iter, cb); err != nil {
@@ -144,7 +144,7 @@ func (i *libIter) ForEach(cb func(borges.Library) error) error {
 	return nil
 }
 
-// Close implementes the borges.LibraryIterator interface.
+// Close implements the borges.LibraryIterator interface.
 func (i *libIter) Close() {
 	for _, iter := range i.iters {
 		iter.Close()
