@@ -9,6 +9,68 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRepositoryIterFuncs(t *testing.T) {
+	var require = require.New(t)
+
+	libs := setupSivaLibraries(t, siva.LibraryOptions{Bucket: 2})
+
+	expected := []borges.RepositoryID{
+		"github.com/rtyley/small-test-repo",
+		"github.com/kuldeep992/small-test-repo",
+		"github.com/kuldeep-singh-blueoptima/small-test-repo",
+		"github.com/prakhar1989/awesome-courses",
+		"github.com/Leo-xxx/awesome-courses",
+		"github.com/manjunath00/awesome-courses",
+		"github.com/nmorr041/datasharing",
+		"github.com/jtleek/datasharing",
+		"github.com/diptadhi/datasharing",
+		"github.com/apoliukh/awesome-sysadmin",
+		"github.com/gauravaristocrat/awesome-sysadmin",
+		"github.com/kahun/awesome-sysadmin",
+		"github.com/youtang1993/awesome-tensorflow",
+		"github.com/jtoy/awesome-tensorflow",
+		"github.com/SiweiLuo/awesome-tensorflow",
+		"github.com/enaqx/awesome-pentest",
+		"github.com/Inter1292/awesome-pentest",
+		"github.com/apelsin83/awesome-pentest",
+		"github.com/MunGell/awesome-for-beginners",
+		"github.com/dhruvil1514/awesome-for-beginners",
+		"github.com/karellism/awesome-for-beginners",
+	}
+
+	iter, err := RepositoryDefaultIter(libs, borges.ReadOnlyMode)
+	require.NoError(err)
+	require.ElementsMatch(expected, toSlice(t, iter))
+
+	iter, err = RepoIterJumpPlainLibraries(libs, borges.ReadOnlyMode)
+	require.NoError(err)
+	require.ElementsMatch(nil, toSlice(t, iter))
+
+	iter, err = RepoIterJumpLibraries(libs, borges.ReadOnlyMode)
+	require.NoError(err)
+	require.ElementsMatch(expected, toSlice(t, iter))
+
+	iter, err = RepoIterSivasJumpLocations(libs, borges.ReadOnlyMode)
+	require.NoError(err)
+	require.ElementsMatch(expected, toSlice(t, iter))
+
+	iter, err = RepoIterJumpLocations(libs, borges.ReadOnlyMode)
+	require.NoError(err)
+	require.ElementsMatch(expected, toSlice(t, iter))
+}
+
+func toSlice(t *testing.T, iter borges.RepositoryIterator) []borges.RepositoryID {
+	t.Helper()
+
+	var ids []borges.RepositoryID
+	require.NoError(t, iter.ForEach(func(r borges.Repository) error {
+		ids = append(ids, r.ID())
+		return nil
+	}))
+
+	return ids
+}
+
 func TestMergedIterators(t *testing.T) {
 	var require = require.New(t)
 
