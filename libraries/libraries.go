@@ -16,18 +16,33 @@ var (
 // FilterLibraryFunc stands for a borges.Library filter function.
 type FilterLibraryFunc func(borges.Library) (bool, error)
 
+// RepositoryIterFunc stands for a function to return a
+// borges.RepositoryIterator which iters in a certain order.
+type RepositoryIterFunc func(*Libraries, borges.Mode) (borges.RepositoryIterator, error)
+
+// Options hold configuration options for a Libraries.
+type Options struct {
+	RepositoryIterOrder RepositoryIterFunc
+}
+
 // Libraries is an implementation to aggregate borges.Library in just one instance.
 // The borges.Library that will be added shouldn't contain other libraries inside.
 type Libraries struct {
 	libs map[borges.LibraryID]borges.Library
+	opts Options
 }
 
 var _ borges.Library = (*Libraries)(nil)
 
 // New create a new Libraries instance.
-func New() *Libraries {
+func New(opts Options) *Libraries {
+	if opts.RepositoryIterOrder == nil {
+		opts.RepositoryIterOrder = RepositoryDefaultIter
+	}
+
 	return &Libraries{
 		libs: map[borges.LibraryID]borges.Library{},
+		opts: opts,
 	}
 }
 
@@ -55,7 +70,6 @@ func (l *Libraries) Init(borges.RepositoryID) (borges.Repository, error) {
 
 // Get implements the Library interface.
 func (l *Libraries) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
-	var repos []borges.Repository
 	for _, lib := range l.libs {
 		r, err := lib.Get(id, mode)
 		if err != nil {
@@ -66,14 +80,10 @@ func (l *Libraries) Get(id borges.RepositoryID, mode borges.Mode) (borges.Reposi
 			return nil, err
 		}
 
-		repos = append(repos, r)
+		return r, nil
 	}
 
-	if len(repos) == 0 {
-		return nil, borges.ErrRepositoryNotExists.New(id)
-	}
-
-	return repos[0], nil
+	return nil, borges.ErrRepositoryNotExists.New(id)
 }
 
 // GetOrInit implements the Library interface.
@@ -83,7 +93,6 @@ func (l *Libraries) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
 
 // Has implements the Library interface.
 func (l *Libraries) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.LocationID, error) {
-	var matches []*hasReturnValues
 	for _, lib := range l.libs {
 		has, libID, locID, err := lib.Has(id)
 		if err != nil {
@@ -91,43 +100,20 @@ func (l *Libraries) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.
 		}
 
 		if has {
-			matches = append(matches, &hasReturnValues{
-				libID: libID,
-				locID: locID,
-			})
+			return has, libID, locID, nil
 		}
 	}
 
-	if len(matches) == 0 {
-		return false, "", "", nil
-	}
-
-	return true, matches[0].libID, matches[0].locID, nil
-}
-
-type hasReturnValues struct {
-	libID borges.LibraryID
-	locID borges.LocationID
+	return false, "", "", nil
 }
 
 // Repositories implements the Library interface.
 func (l *Libraries) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
-	var repositories []borges.RepositoryIterator
-	for _, lib := range l.libs {
-		repos, err := lib.Repositories(mode)
-		if err != nil {
-			return nil, err
-		}
-
-		repositories = append(repositories, repos)
-	}
-
-	return MergeRepositoryIterators(repositories), nil
+	return l.opts.RepositoryIterOrder(l, mode)
 }
 
 // Location implements the Library interface.
 func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
-	var locations []borges.Location
 	for _, lib := range l.libs {
 		loc, err := lib.Location(id)
 		if err != nil {
@@ -138,14 +124,10 @@ func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
 			return nil, err
 		}
 
-		locations = append(locations, loc)
+		return loc, nil
 	}
 
-	if len(locations) == 0 {
-		return nil, borges.ErrLocationNotExists.New(id)
-	}
-
-	return locations[0], nil
+	return nil, borges.ErrLocationNotExists.New(id)
 }
 
 // Locations implements the Library interface.

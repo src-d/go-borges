@@ -69,7 +69,7 @@ func setupSivaLibraries(t *testing.T, opts siva.LibraryOptions) *Libraries {
 	t.Helper()
 	var require = require.New(t)
 
-	libs := New()
+	libs := New(Options{})
 	require.NotNil(libs)
 	require.Equal(borges.LibraryID(""), libs.ID())
 
