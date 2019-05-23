@@ -24,6 +24,7 @@ type Location struct {
 	lib        *Library
 	checkpoint *checkpoint
 	txer       *transactioner
+	metadata   *LocationMetadata
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -36,6 +37,13 @@ func newLocation(
 	path string,
 	create bool,
 ) (*Location, error) {
+	// LibraryMetadataFile is the name of the file that holds library metadatan
+	metadata, err := LoadLocationMetadata(lib.fs, LocationMetadataPath(path))
+	if err != nil {
+		// TODO: skip metadata if corrupted? log a warning?
+		return nil, err
+	}
+
 	cp, err := newCheckpoint(lib.fs, path, create)
 	if err != nil {
 		return nil, err
@@ -46,6 +54,7 @@ func newLocation(
 		path:       path,
 		lib:        lib,
 		checkpoint: cp,
+		metadata:   metadata,
 	}
 
 	loc.txer = newTransactioner(loc, lib.locReg, lib.options.Timeout)
@@ -55,12 +64,20 @@ func newLocation(
 // FS returns a filesystem for the location's siva file.
 func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
 	if mode == borges.ReadOnlyMode {
+		offset := l.checkpoint.Offset()
+
+		if l.metadata != nil {
+			if o := l.metadata.OffsetFromLibrary(l.lib.metadata); o > 0 {
+				offset = o
+			}
+		}
+
 		return sivafs.NewFilesystemWithOptions(
 			l.lib.fs, l.path, memfs.New(),
 			sivafs.SivaFSOptions{
 				UnsafePaths: true,
 				ReadOnly:    true,
-				Offset:      l.checkpoint.Offset(),
+				Offset:      offset,
 			},
 		)
 	}

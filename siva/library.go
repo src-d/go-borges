@@ -28,7 +28,8 @@ type Library struct {
 	tmp    billy.Filesystem
 	locReg *locationRegistry
 
-	options LibraryOptions
+	options  LibraryOptions
+	metadata *LibraryMetadata
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -67,6 +68,12 @@ func NewLibrary(
 	fs billy.Filesystem,
 	ops LibraryOptions,
 ) (*Library, error) {
+	metadata, err := LoadLibraryMetadata(fs)
+	if err != nil {
+		// TODO: skip metadata if corrupted?
+		return nil, err
+	}
+
 	lr, err := newLocationRegistry(ops.RegistryCache)
 	if err != nil {
 		return nil, err
@@ -87,11 +94,12 @@ func NewLibrary(
 	}
 
 	return &Library{
-		id:      borges.LibraryID(id),
-		fs:      fs,
-		tmp:     tmp,
-		locReg:  lr,
-		options: ops,
+		id:       borges.LibraryID(id),
+		fs:       fs,
+		tmp:      tmp,
+		locReg:   lr,
+		options:  ops,
+		metadata: metadata,
 	}, nil
 }
 
