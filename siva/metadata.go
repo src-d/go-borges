@@ -6,6 +6,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4/util"
 )
 
 const (
@@ -15,11 +16,65 @@ const (
 
 // LibraryMetadata holds information about the library.
 type LibraryMetadata struct {
-	Version int `json:"version"`
+	CurrentVersion int `json:"version"`
+
+	dirty bool
 }
 
-// ParseLibraryMetadata parses the yaml representation of library metadata.
-func ParseLibraryMetadata(d []byte) (*LibraryMetadata, error) {
+// NewLibraryMetadata creates a new LibraryMetadata.
+func NewLibraryMetadata(Version int) *LibraryMetadata {
+	return &LibraryMetadata{
+		CurrentVersion: Version,
+	}
+}
+
+// Version returns the version stored in the library metadata file or -1
+// if it's not set.
+func (m *LibraryMetadata) Version() int {
+	if m == nil {
+		return -1
+	}
+
+	return m.CurrentVersion
+}
+
+// SetVersion changes the current version.
+func (m *LibraryMetadata) SetVersion(v int) {
+	if v != m.CurrentVersion {
+		m.dirty = true
+		m.CurrentVersion = v
+	}
+}
+
+// Save writes metadata to the library yaml file.
+func (m *LibraryMetadata) Save(fs billy.Filesystem) error {
+	data, err := m.yaml()
+	if err != nil {
+		return err
+	}
+
+	tmp := LibraryMetadataFile + ".tmp"
+	defer fs.Remove(tmp)
+
+	err = util.WriteFile(fs, tmp, data, 0666)
+	if err != nil {
+		return err
+	}
+
+	return fs.Rename(tmp, LibraryMetadataFile)
+}
+
+// Dirty returns true if the metadata was changed and it needs to be written.
+func (m *LibraryMetadata) Dirty() bool {
+	return m.dirty
+}
+
+func (m *LibraryMetadata) yaml() ([]byte, error) {
+	return yaml.Marshal(*m)
+}
+
+// parseLibraryMetadata parses the yaml representation of library metadata.
+func parseLibraryMetadata(d []byte) (*LibraryMetadata, error) {
 	var m LibraryMetadata
 
 	err := yaml.Unmarshal(d, &m)
@@ -30,8 +85,8 @@ func ParseLibraryMetadata(d []byte) (*LibraryMetadata, error) {
 	return &m, nil
 }
 
-// LoadLibraryMetadata reads and parses a library metadata file.
-func LoadLibraryMetadata(fs billy.Filesystem) (*LibraryMetadata, error) {
+// loadLibraryMetadata reads and parses a library metadata file.
+func loadLibraryMetadata(fs billy.Filesystem) (*LibraryMetadata, error) {
 	mf, err := fs.Open(LibraryMetadataFile)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -46,27 +101,34 @@ func LoadLibraryMetadata(fs billy.Filesystem) (*LibraryMetadata, error) {
 		return nil, err
 	}
 
-	return ParseLibraryMetadata(data)
+	return parseLibraryMetadata(data)
 }
 
 // Version describes a bookmark in the siva file.
 type Version struct {
 	// Offset is a position in the siva file.
 	Offset uint64 `json:"offset"`
-	// Size is block size of the version.
+	// Size is block size of the Version.
 	Size uint64 `json:"size,omiempty"`
 }
 
-// Versions holds a numbered list of bookmarks in the siva file.
-type Versions map[int]Version
-
 // LocationMetadata holds extra data associated with a siva file.
 type LocationMetadata struct {
-	Versions Versions `json:"versions"`
+	// Versions holds a numbered list of bookmarks in the siva file.
+	Versions map[int]Version `json:"versions"`
+
+	dirty bool
 }
 
-// ParseLocationMetadata parses the yaml representation of location metadata.
-func ParseLocationMetadata(d []byte) (*LocationMetadata, error) {
+// NewLocationMetadata creates a new LocationMetadata.
+func NewLocationMetadata(versions map[int]Version) *LocationMetadata {
+	return &LocationMetadata{
+		Versions: versions,
+	}
+}
+
+// parseLocationMetadata parses the yaml representation of location metadata.
+func parseLocationMetadata(d []byte) (*LocationMetadata, error) {
 	var m LocationMetadata
 
 	err := yaml.Unmarshal(d, &m)
@@ -77,8 +139,11 @@ func ParseLocationMetadata(d []byte) (*LocationMetadata, error) {
 	return &m, nil
 }
 
-// LoadLocationMetadata reads and parses a location metadata file.
-func LoadLocationMetadata(fs billy.Filesystem, path string) (*LocationMetadata, error) {
+// loadLocationMetadata reads and parses a location metadata file.
+func loadLocationMetadata(
+	fs billy.Filesystem,
+	path string,
+) (*LocationMetadata, error) {
 	mf, err := fs.Open(path)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -93,21 +158,25 @@ func LoadLocationMetadata(fs billy.Filesystem, path string) (*LocationMetadata, 
 		return nil, err
 	}
 
-	return ParseLocationMetadata(data)
+	return parseLocationMetadata(data)
 }
 
-// LocationMetadataPath returns the path for a location metadata file.
-func LocationMetadataPath(path string) string {
+// locationMetadataPath returns the path for a location metadata file.
+func locationMetadataPath(path string) string {
 	return path + ".yaml"
 }
 
-// ToYaml returns the yaml representation of the location metadata.
-func (m *LocationMetadata) ToYaml() ([]byte, error) {
+// yaml returns the yaml representation of the location metadata.
+func (m *LocationMetadata) yaml() ([]byte, error) {
 	return yaml.Marshal(m)
 }
 
-// Last returns the last version or -1 if there are no versions.
+// Last returns the last Version or -1 if there are no Versions.
 func (m *LocationMetadata) Last() int {
+	if m == nil {
+		return -1
+	}
+
 	last := -1
 	for i := range m.Versions {
 		if i > last {
@@ -118,7 +187,7 @@ func (m *LocationMetadata) Last() int {
 	return last
 }
 
-// closest searches for the last version lesser or equal to the one provided.
+// closest searches for the last Version lesser or equal to the one provided.
 func (m *LocationMetadata) closest(v int) int {
 	closest := -1
 	for i := range m.Versions {
@@ -130,27 +199,80 @@ func (m *LocationMetadata) closest(v int) int {
 	return closest
 }
 
-// OffsetFromLibrary picks the version from Library metadata and returns its
-// offsets. If the version does not exist it selects the closest previous
-// version. In case there's no Library metadata it picks the latest version.
-// If there are not versions defined returns offset 0 that means to use
+// Offset picks the closest Version from metadata and returns its offsets.
+// If there are not Versions defined returns offset 0 that means to use
 // the latest siva index when used with siva filesystem.
-func (m *LocationMetadata) OffsetFromLibrary(l *LibraryMetadata) uint64 {
-	version := m.Last()
+func (m *LocationMetadata) Offset(c int) uint64 {
+	Version := m.Last()
 
-	if version == -1 {
+	if Version < 0 {
 		return 0
 	}
 
-	if l != nil {
-		if v, ok := m.Versions[l.Version]; ok {
-			return v.Offset
-		}
-
-		if closest := m.closest(l.Version); closest >= 0 {
-			version = closest
-		}
+	if v, ok := m.Versions[c]; ok {
+		return v.Offset
 	}
 
-	return m.Versions[version].Offset
+	if closest := m.closest(c); closest >= 0 {
+		Version = closest
+	}
+
+	return m.Versions[Version].Offset
+}
+
+// Version returns information for a given version. Second return argument
+// is false if the version does not exist.
+func (m *LocationMetadata) Version(v int) (Version, bool) {
+	if m == nil {
+		return Version{}, false
+	}
+
+	d, ok := m.Versions[v]
+	return d, ok
+}
+
+// SetVersion changes or adds the information for a version.
+func (m *LocationMetadata) SetVersion(n int, v Version) {
+	Version, ok := m.Versions[n]
+	if ok && Version == v {
+		return
+	}
+
+	m.Versions[n] = v
+	m.dirty = true
+}
+
+// DeleteVersion deletes a given version.
+func (m *LocationMetadata) DeleteVersion(n int) {
+	_, ok := m.Versions[n]
+	if !ok {
+		return
+	}
+
+	delete(m.Versions, n)
+	m.dirty = true
+}
+
+// Dirty returns true if metadata was changed and needs saving.
+func (m *LocationMetadata) Dirty() bool {
+	return m.dirty
+}
+
+// Save writes metadata to the yaml file for the give siva path.
+func (m *LocationMetadata) Save(fs billy.Filesystem, path string) error {
+	data, err := m.yaml()
+	if err != nil {
+		return err
+	}
+
+	path = locationMetadataPath(path)
+	tmp := path + ".tmp"
+	defer fs.Remove(tmp)
+
+	err = util.WriteFile(fs, tmp, data, 0666)
+	if err != nil {
+		return err
+	}
+
+	return fs.Rename(tmp, path)
 }

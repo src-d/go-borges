@@ -38,7 +38,7 @@ func newLocation(
 	create bool,
 ) (*Location, error) {
 	// LibraryMetadataFile is the name of the file that holds library metadatan
-	metadata, err := LoadLocationMetadata(lib.fs, LocationMetadataPath(path))
+	metadata, err := loadLocationMetadata(lib.fs, locationMetadataPath(path))
 	if err != nil {
 		// TODO: skip metadata if corrupted? log a warning?
 		return nil, err
@@ -67,7 +67,7 @@ func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
 		offset := l.checkpoint.Offset()
 
 		if l.metadata != nil {
-			if o := l.metadata.OffsetFromLibrary(l.lib.metadata); o > 0 {
+			if o := l.metadata.Offset(l.lib.Version()); o > 0 {
 				offset = o
 			}
 		}
@@ -353,4 +353,43 @@ func (l *Location) repository(
 	}
 
 	return newRepository(id, sto, mode, l.lib.options.Transactional, l)
+}
+
+func (l *Location) createMetadata() {
+	if l.metadata == nil {
+		l.metadata = NewLocationMetadata(make(map[int]Version))
+	}
+}
+
+// LastVersion returns the last defined version number in metadata or -1 if
+// there are not versions.
+func (l *Location) LastVersion() int {
+	return l.metadata.Last()
+}
+
+// Version returns an specific version. Second return value is false if the
+// version does not exist.
+func (l *Location) Version(v int) (Version, bool) {
+	return l.metadata.Version(v)
+}
+
+// SetVersion adds or changes a version to the location.
+func (l *Location) SetVersion(n int, v Version) {
+	l.createMetadata()
+	l.metadata.SetVersion(n, v)
+}
+
+// DeleteVersion removes the given version number.
+func (l *Location) DeleteVersion(n int) {
+	l.createMetadata()
+	l.metadata.DeleteVersion(n)
+}
+
+// SaveMetadata writes the location metadata to disk.
+func (l *Location) SaveMetadata() error {
+	if l.metadata != nil && l.metadata.Dirty() {
+		return l.metadata.Save(l.lib.fs, l.path)
+	}
+
+	return nil
 }

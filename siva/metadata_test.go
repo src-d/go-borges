@@ -2,6 +2,7 @@ package siva
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestMetadataSiva(t *testing.T) {
 	require := require.New(t)
 
 	meta := LocationMetadata{
-		Versions: Versions{
+		Versions: map[int]Version{
 			0: {
 				Offset: 16,
 				Size:   17,
@@ -39,16 +40,17 @@ func TestMetadataSiva(t *testing.T) {
 		},
 	}
 
-	data, err := meta.ToYaml()
+	data, err := meta.yaml()
 	require.NoError(err)
 
-	m, err := ParseLocationMetadata(data)
+	m, err := parseLocationMetadata(data)
 	require.NoError(err)
 	require.EqualValues(meta, *m)
 }
 
-const (
-	rootedVersions = `
+func TestMetadataLibrary(t *testing.T) {
+	const (
+		rootedVersions = `
 ---
 versions:
   "0":
@@ -61,11 +63,9 @@ versions:
     offset: 17421
 `
 
-	libMetadata = `---
+		libMetadata = `---
 version: `
-)
-
-func TestMetadataLibrary(t *testing.T) {
+	)
 
 	tests := []struct {
 		version      int
@@ -144,7 +144,7 @@ func TestMetadataLibrary(t *testing.T) {
 				require.NoError(err)
 			}
 
-			path := LocationMetadataPath("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2.siva")
+			path := locationMetadataPath("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2.siva")
 			err := util.WriteFile(fs, path, []byte(rootedVersions), 0666)
 			require.NoError(err)
 
@@ -164,5 +164,153 @@ func TestMetadataLibrary(t *testing.T) {
 			require.ElementsMatch(test.repositories, repositories)
 		})
 	}
+}
 
+func TestMetadataWriteLibrary(t *testing.T) {
+	require := require.New(t)
+	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
+
+	// library does not have metadata
+	lib, err := NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	version := lib.Version()
+	require.Equal(-1, version)
+
+	err = lib.SaveMetadata()
+	require.NoError(err)
+
+	_, err = fs.Stat(LibraryMetadataFile)
+	require.True(os.IsNotExist(err), "library metadata file should not exist")
+
+	// set version in library metadata
+	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	version = lib.Version()
+	require.Equal(-1, version)
+
+	lib.SetVersion(1)
+
+	err = lib.SaveMetadata()
+	require.NoError(err)
+
+	_, err = fs.Stat(LibraryMetadataFile)
+	require.NoError(err, "library metadata file should exist")
+
+	// modify version in library metadata
+	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	version = lib.Version()
+	require.Equal(1, version)
+
+	lib.SetVersion(10)
+	err = lib.SaveMetadata()
+	require.NoError(err)
+
+	// check modified version
+	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	version = lib.Version()
+	require.Equal(10, version)
+}
+
+func TestMetadataWriteLocation(t *testing.T) {
+	require := require.New(t)
+	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
+
+	lib, err := NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+	require.NoError(err)
+
+	l, ok := loc.(*Location)
+	require.True(ok, "location must be siva.Location")
+
+	var repos []string
+	it, err := l.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	err = it.ForEach(func(r borges.Repository) error {
+		repos = append(repos, r.ID().String())
+		return nil
+	})
+	require.NoError(err)
+
+	require.ElementsMatch([]string{
+		"gitserver.com/a",
+		"gitserver.com/b",
+		"gitserver.com/c",
+		"gitserver.com/d",
+	}, repos)
+
+	last := l.LastVersion()
+	require.Equal(-1, last)
+
+	l.SetVersion(0, Version{
+		Offset: 3180,
+	})
+
+	last = l.LastVersion()
+	require.Equal(0, last)
+
+	err = l.SaveMetadata()
+	require.NoError(err)
+
+	repos = []string{}
+	it, err = l.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	err = it.ForEach(func(r borges.Repository) error {
+		repos = append(repos, r.ID().String())
+		return nil
+	})
+	require.NoError(err)
+
+	require.ElementsMatch([]string{"gitserver.com/a"}, repos)
+
+	l.SetVersion(1, Version{
+		Offset: 6557,
+	})
+	l.DeleteVersion(0)
+	err = l.SaveMetadata()
+	require.NoError(err)
+
+	// Reopen library and check versions
+
+	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	require.NoError(err)
+
+	loc, err = lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+	require.NoError(err)
+
+	l, ok = loc.(*Location)
+	require.True(ok, "location must be siva.Location")
+
+	_, ok = l.Version(0)
+	require.False(ok, "version 0 should not exist, it was deleted")
+
+	v, ok := l.Version(1)
+	require.True(ok, "version 1 should exist")
+	require.Equal(uint64(6557), v.Offset)
+
+	require.Equal(1, l.LastVersion())
+
+	repos = []string{}
+	it, err = l.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	err = it.ForEach(func(r borges.Repository) error {
+		repos = append(repos, r.ID().String())
+		return nil
+	})
+	require.NoError(err)
+
+	require.ElementsMatch([]string{
+		"gitserver.com/a",
+		"gitserver.com/b",
+	}, repos)
 }

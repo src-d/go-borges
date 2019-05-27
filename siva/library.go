@@ -68,7 +68,7 @@ func NewLibrary(
 	fs billy.Filesystem,
 	ops LibraryOptions,
 ) (*Library, error) {
-	metadata, err := LoadLibraryMetadata(fs)
+	metadata, err := loadLibraryMetadata(fs)
 	if err != nil {
 		// TODO: skip metadata if corrupted?
 		return nil, err
@@ -278,4 +278,27 @@ func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 func (l *Library) Libraries() (borges.LibraryIterator, error) {
 	libs := []borges.Library{l}
 	return util.NewLibraryIterator(libs), nil
+}
+
+// Version returns version stored in metadata or -1 if not defined.
+func (l *Library) Version() int {
+	return l.metadata.Version()
+}
+
+// SetVersion sets the current version to the given number.
+func (l *Library) SetVersion(n int) {
+	if l.metadata == nil {
+		l.metadata = NewLibraryMetadata(-1)
+	}
+
+	l.metadata.SetVersion(n)
+}
+
+// SaveMetadata writes the metadata to the library yaml file.
+func (l *Library) SaveMetadata() error {
+	if l.metadata != nil && l.metadata.dirty {
+		return l.metadata.Save(l.fs)
+	}
+
+	return nil
 }
