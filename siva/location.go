@@ -17,6 +17,9 @@ import (
 // ErrMalformedData when checkpoint data is invalid.
 var ErrMalformedData = errors.NewKind("malformed data")
 
+// ErrInvalidSize means that the siva size could not be correctly retrieved.
+var ErrInvalidSize = errors.NewKind("invalid siva size")
+
 // Location represents a siva file archiving several git repositories.
 type Location struct {
 	id         borges.LocationID
@@ -392,4 +395,18 @@ func (l *Location) SaveMetadata() error {
 	}
 
 	return nil
+}
+
+func (l *Location) size() (uint64, error) {
+	stat, err := l.lib.fs.Stat(l.path)
+	if err != nil {
+		return 0, err
+	}
+
+	size := stat.Size()
+	if size < 0 {
+		return 0, ErrInvalidSize.New()
+	}
+
+	return uint64(stat.Size()), nil
 }

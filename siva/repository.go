@@ -26,7 +26,8 @@ type Repository struct {
 	mu     sync.Mutex
 	closed bool
 
-	location *Location
+	location      *Location
+	createVersion int
 }
 
 var _ borges.Repository = (*Repository)(nil)
@@ -57,6 +58,7 @@ func newRepository(
 		mode:          m,
 		transactional: transactional,
 		location:      l,
+		createVersion: -1,
 	}, nil
 }
 
@@ -100,6 +102,11 @@ func (r *Repository) Commit() error {
 		}
 	}
 
+	err := r.saveVersion()
+	if err != nil {
+		return err
+	}
+
 	return r.location.Commit(r.mode)
 }
 
@@ -129,4 +136,40 @@ func (r *Repository) Close() error {
 // R implements borges.Repository interface.
 func (r *Repository) R() *git.Repository {
 	return r.repo
+}
+
+// VersionOnCommit specifies the version that will be set when the changes
+// are committed. Only works for transactional repositories.
+func (r *Repository) VersionOnCommit(n int) {
+	r.createVersion = n
+}
+
+func (r *Repository) saveVersion() error {
+	if r.createVersion < 0 {
+		return nil
+	}
+
+	offset, err := r.location.size()
+	if err != nil {
+		return err
+	}
+
+	size := offset + 1
+
+	// work with metadata directly to get the offset of previous version
+	metadata := r.location.metadata
+	if metadata != nil {
+		metadata.DeleteVersion(r.createVersion)
+		previousOffset := metadata.Offset(r.createVersion)
+		if previousOffset > 0 {
+			size = offset - previousOffset
+		}
+	}
+
+	r.location.SetVersion(r.createVersion, Version{
+		Offset: offset,
+		Size:   size,
+	})
+
+	return r.location.SaveMetadata()
 }

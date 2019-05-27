@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-billy.v4/util"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestMetadataSiva(t *testing.T) {
@@ -313,4 +314,81 @@ func TestMetadataWriteLocation(t *testing.T) {
 		"gitserver.com/a",
 		"gitserver.com/b",
 	}, repos)
+}
+
+func TestMetadataVersionOnCommit(t *testing.T) {
+	require := require.New(t)
+	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
+
+	lib, err := NewLibrary("test", fs, LibraryOptions{
+		Transactional: true,
+	})
+	require.NoError(err)
+
+	tests := []struct {
+		version int
+		offset  uint64
+		size    uint64
+	}{
+		{
+			version: 0,
+			offset:  19386,
+			size:    19387,
+		},
+		{
+			version: 1,
+			offset:  21407,
+			size:    2021,
+		},
+		{
+			version: 2,
+			offset:  23484,
+			size:    2077,
+		},
+	}
+
+	// create versions
+	for _, t := range tests {
+		loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+		require.NoError(err)
+
+		repo, err := loc.Get("gitserver.com/a", borges.RWMode)
+		require.NoError(err)
+
+		sivaRepo := repo.(*Repository)
+		sivaRepo.VersionOnCommit(t.version)
+
+		r := repo.R()
+		name := fmt.Sprintf("tag%v", t.version)
+		_, err = r.CreateTag(name, plumbing.ZeroHash, nil)
+		require.NoError(err)
+
+		err = repo.Commit()
+		require.NoError(err)
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("version-%v", test.version), func(t *testing.T) {
+			lib.SetVersion(test.version)
+			loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+			require.NoError(err)
+
+			sivaLoc := loc.(*Location)
+			version, ok := sivaLoc.Version(test.version)
+			require.True(ok, "version must exist")
+
+			require.Equal(test.offset, version.Offset)
+			require.Equal(test.size, version.Size)
+
+			repo, err := loc.Get("gitserver.com/a", borges.ReadOnlyMode)
+			require.NoError(err)
+
+			r := repo.R()
+			_, err = r.Tag(fmt.Sprintf("tag%v", test.version))
+			require.NoError(err)
+			_, err = r.Tag(fmt.Sprintf("tag%v", test.version+1))
+			require.Error(err)
+		})
+	}
+
 }
