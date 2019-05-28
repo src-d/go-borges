@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/src-d/go-borges"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func TestMetadataSiva(t *testing.T) {
 		},
 	}
 
-	data, err := meta.yaml()
+	data, err := yaml.Marshal(meta)
 	require.NoError(err)
 
 	m, err := parseLocationMetadata(data)

@@ -40,7 +40,6 @@ func newLocation(
 	path string,
 	create bool,
 ) (*Location, error) {
-	// LibraryMetadataFile is the name of the file that holds library metadatan
 	metadata, err := loadLocationMetadata(lib.fs, locationMetadataPath(path))
 	if err != nil {
 		// TODO: skip metadata if corrupted? log a warning?

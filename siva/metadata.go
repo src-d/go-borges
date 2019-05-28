@@ -48,7 +48,7 @@ func (m *LibraryMetadata) SetVersion(v int) {
 
 // Save writes metadata to the library yaml file.
 func (m *LibraryMetadata) Save(fs billy.Filesystem) error {
-	data, err := m.yaml()
+	data, err := yaml.Marshal(m)
 	if err != nil {
 		return err
 	}
@@ -67,10 +67,6 @@ func (m *LibraryMetadata) Save(fs billy.Filesystem) error {
 // Dirty returns true if the metadata was changed and it needs to be written.
 func (m *LibraryMetadata) Dirty() bool {
 	return m.dirty
-}
-
-func (m *LibraryMetadata) yaml() ([]byte, error) {
-	return yaml.Marshal(*m)
 }
 
 // parseLibraryMetadata parses the yaml representation of library metadata.
@@ -166,11 +162,6 @@ func locationMetadataPath(path string) string {
 	return path + ".yaml"
 }
 
-// yaml returns the yaml representation of the location metadata.
-func (m *LocationMetadata) yaml() ([]byte, error) {
-	return yaml.Marshal(m)
-}
-
 // Last returns the last Version or -1 if there are no Versions.
 func (m *LocationMetadata) Last() int {
 	if m == nil {
@@ -260,7 +251,7 @@ func (m *LocationMetadata) Dirty() bool {
 
 // Save writes metadata to the yaml file for the give siva path.
 func (m *LocationMetadata) Save(fs billy.Filesystem, path string) error {
-	data, err := m.yaml()
+	data, err := yaml.Marshal(m)
 	if err != nil {
 		return err
 	}
