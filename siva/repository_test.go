@@ -278,7 +278,7 @@ func (s *repoSuite) TestFilesystem() {
 		URLs:  []string{"git@github.com:baz/bar.git"},
 	}
 
-	fs := st.Filesystem()
+	fs := st.filesystem()
 	f, err := fs.OpenFile("config", os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
 	require.NoError(err)
 
@@ -322,7 +322,7 @@ func (s *repoSuite) TestPackfileWriter() {
 
 	sto, ok := repo.Storer.(*Storage)
 	require.True(ok, "it's not a siva.Storage")
-	fs := sto.Filesystem()
+	fs := sto.filesystem()
 
 	files, err := fs.ReadDir("/objects/pack")
 	require.NoError(err)
@@ -387,7 +387,7 @@ func (s *repoSuite) TestTransaction_FailedCommit() {
 	require.True(ok)
 	sto, ok := rs.s.(*Storage)
 	require.True(ok)
-	err = sto.Cleanup()
+	err = sto.cleanup()
 	require.NoError(err)
 
 	err = r.Commit()
@@ -416,7 +416,7 @@ func (s *repoSuite) TestTransaction_FailedCommitEmpty() {
 	require.True(ok)
 	sto, ok := rs.s.(*Storage)
 	require.True(ok)
-	err = sto.Cleanup()
+	err = sto.cleanup()
 	require.NoError(err)
 
 	err = r.Commit()

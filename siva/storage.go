@@ -96,6 +96,7 @@ type Storage struct {
 	tmp           billy.Filesystem
 	tmpDir        string
 	transactional bool
+	syncBase      bool
 }
 
 // NewStorage creates a new Storage struct. A new temporary directory is created
@@ -184,7 +185,7 @@ func NewStorage(
 // original siva file. If it's not transactional the original siva file is
 // closed.
 func (s *Storage) Commit() error {
-	defer s.Cleanup()
+	defer s.cleanup()
 
 	if c, ok := s.Storer.(io.Closer); ok {
 		err := c.Close()
@@ -197,7 +198,7 @@ func (s *Storage) Commit() error {
 		return err
 	}
 
-	err := s.Filesystem().Sync()
+	err := s.sync()
 	if err != nil {
 		return err
 	}
@@ -254,21 +255,19 @@ func (s *Storage) Close() (err error) {
 		err = pErr
 	}
 
-	if sErr := s.Filesystem().Sync(); sErr != nil {
+	if sErr := s.sync(); sErr != nil {
 		err = sErr
 	}
 
-	s.Cleanup()
+	s.cleanup()
 	return err
 }
 
-// Cleanup deletes temporary files created for this Storage.
-func (s *Storage) Cleanup() error {
+func (s *Storage) cleanup() error {
 	return butil.RemoveAll(s.tmp, s.tmpDir)
 }
 
-// Filesystem returns the filesystem that can be used for writing.
-func (s *Storage) Filesystem() sivafs.SivaFS {
+func (s *Storage) filesystem() sivafs.SivaFS {
 	var fs sivafs.SivaFS
 	if s.transactional {
 		fs = s.transFS
@@ -277,6 +276,16 @@ func (s *Storage) Filesystem() sivafs.SivaFS {
 	}
 
 	return fs
+}
+
+func (s *Storage) sync() error {
+	if s.transactional && s.syncBase {
+		if err := s.baseFS.Sync(); err != nil {
+			return err
+		}
+	}
+
+	return s.filesystem().Sync()
 }
 
 func getSivaFS(
@@ -369,16 +378,14 @@ func (s *Storage) PackRefs() (err error) {
 			return err
 		}
 
-		if s.transactional && !os.IsNotExist(err) {
-			if err := s.baseFS.Sync(); err != nil {
-				return err
-			}
+		if !os.IsNotExist(err) {
+			s.syncBase = true
 		}
 
 		return nil
 	}
 
-	f, err := s.Filesystem().OpenFile(
+	f, err := s.filesystem().OpenFile(
 		packedRefsPath,
 		os.O_TRUNC|os.O_CREATE|os.O_WRONLY,
 		0660,
@@ -416,7 +423,8 @@ func (s *Storage) PackRefs() (err error) {
 }
 
 func (s *Storage) removeRefsDir() error {
-	fs := s.Filesystem()
+	var needSync bool
+	fs := s.filesystem()
 	_, err := fs.Stat(refsPath)
 	if err != nil {
 		if fs == s.transFS {
@@ -433,11 +441,27 @@ func (s *Storage) removeRefsDir() error {
 			if err := fs.MkdirAll(refsPath, 0770); err != nil {
 				return err
 			}
+
+			needSync = true
 		}
 	}
 
-	if err := createKeepFile(fs, refsPath); err != nil {
-		return err
+	keepPath := filepath.Join(refsPath, keepFile)
+	if _, err := fs.Stat(keepPath); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+
+		f, err := fs.Create(keepPath)
+		if err != nil {
+			return err
+		}
+
+		if err := f.Close(); err != nil {
+			return err
+		}
+
+		needSync = true
 	}
 
 	entries, err := fs.ReadDir(refsPath)
@@ -456,32 +480,12 @@ func (s *Storage) removeRefsDir() error {
 		); err != nil {
 			return err
 		}
+
+		needSync = true
 	}
 
-	if s.transactional {
-		if err := s.baseFS.Sync(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func createKeepFile(fs billy.Filesystem, dir string) error {
-	path := filepath.Join(dir, keepFile)
-	if _, err := fs.Stat(path); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-
-		f, err := fs.Create(path)
-		if err != nil {
-			return err
-		}
-
-		if err := f.Close(); err != nil {
-			return err
-		}
+	if needSync {
+		s.syncBase = true
 	}
 
 	return nil
