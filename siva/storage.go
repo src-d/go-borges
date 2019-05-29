@@ -27,6 +27,7 @@ const (
 	baseSivaName    = "base"
 	packedRefsPath  = "packed-refs"
 	refsPath        = "refs"
+	keepFile        = ".keep"
 )
 
 // ErrEmptyCommit is returned when a repository opened in RW mode tries to commit no changes.
@@ -90,10 +91,12 @@ type Storage struct {
 
 	base          billy.Filesystem
 	path          string
-	fs            sivafs.SivaFS
+	baseFS        sivafs.SivaFS
+	transFS       sivafs.SivaFS
 	tmp           billy.Filesystem
 	tmpDir        string
 	transactional bool
+	syncBase      bool
 }
 
 // NewStorage creates a new Storage struct. A new temporary directory is created
@@ -143,7 +146,7 @@ func NewStorage(
 			ReferenceStorage: refSto,
 			base:             base,
 			path:             path,
-			fs:               baseFS,
+			baseFS:           baseFS,
 			tmp:              tmp,
 			tmpDir:           rootDir,
 			transactional:    false,
@@ -169,7 +172,8 @@ func NewStorage(
 		ReferenceStorage: refSto,
 		base:             base,
 		path:             path,
-		fs:               transactionFS,
+		baseFS:           baseFS,
+		transFS:          transactionFS,
 		tmp:              tmp,
 		tmpDir:           rootDir,
 		transactional:    true,
@@ -181,7 +185,7 @@ func NewStorage(
 // original siva file. If it's not transactional the original siva file is
 // closed.
 func (s *Storage) Commit() error {
-	defer s.Cleanup()
+	defer s.cleanup()
 
 	if c, ok := s.Storer.(io.Closer); ok {
 		err := c.Close()
@@ -194,7 +198,7 @@ func (s *Storage) Commit() error {
 		return err
 	}
 
-	err := s.fs.Sync()
+	err := s.sync()
 	if err != nil {
 		return err
 	}
@@ -251,27 +255,37 @@ func (s *Storage) Close() (err error) {
 		err = pErr
 	}
 
-	if sErr := s.Sync(); sErr != nil {
+	if sErr := s.sync(); sErr != nil {
 		err = sErr
 	}
 
-	s.Cleanup()
+	s.cleanup()
 	return err
 }
 
-// Cleanup deletes temporary files created for this Storage.
-func (s *Storage) Cleanup() error {
+func (s *Storage) cleanup() error {
 	return butil.RemoveAll(s.tmp, s.tmpDir)
 }
 
-// Sync closes the siva file where the storer is writing.
-func (s *Storage) Sync() error {
-	return s.fs.Sync()
+func (s *Storage) filesystem() sivafs.SivaFS {
+	var fs sivafs.SivaFS
+	if s.transactional {
+		fs = s.transFS
+	} else {
+		fs = s.baseFS
+	}
+
+	return fs
 }
 
-// Filesystem returns the filesystem that can be used for writing.
-func (s *Storage) Filesystem() billy.Filesystem {
-	return s.fs
+func (s *Storage) sync() error {
+	if s.transactional && s.syncBase {
+		if err := s.baseFS.Sync(); err != nil {
+			return err
+		}
+	}
+
+	return s.filesystem().Sync()
 }
 
 func getSivaFS(
@@ -359,15 +373,23 @@ func (s *Storage) PackRefs() (err error) {
 	}
 
 	if len(s.ReferenceStorage) == 0 {
-		err := s.fs.Remove(packedRefsPath)
+		err := s.baseFS.Remove(packedRefsPath)
 		if err != nil && !os.IsNotExist(err) {
 			return err
+		}
+
+		if !os.IsNotExist(err) {
+			s.syncBase = true
 		}
 
 		return nil
 	}
 
-	f, err := s.fs.OpenFile(packedRefsPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0660)
+	f, err := s.filesystem().OpenFile(
+		packedRefsPath,
+		os.O_TRUNC|os.O_CREATE|os.O_WRONLY,
+		0660,
+	)
 	if err != nil {
 		return err
 	}
@@ -397,5 +419,74 @@ func (s *Storage) PackRefs() (err error) {
 		}
 	}
 
-	return butil.RemoveAll(s.fs, refsPath)
+	return s.removeRefsDir()
+}
+
+func (s *Storage) removeRefsDir() error {
+	var needSync bool
+	fs := s.filesystem()
+	_, err := fs.Stat(refsPath)
+	if err != nil {
+		if fs == s.transFS {
+			fs = s.baseFS
+			_, err = fs.Stat(refsPath)
+
+		}
+
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+
+			if err := fs.MkdirAll(refsPath, 0770); err != nil {
+				return err
+			}
+
+			needSync = true
+		}
+	}
+
+	keepPath := filepath.Join(refsPath, keepFile)
+	if _, err := fs.Stat(keepPath); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+
+		f, err := fs.Create(keepPath)
+		if err != nil {
+			return err
+		}
+
+		if err := f.Close(); err != nil {
+			return err
+		}
+
+		needSync = true
+	}
+
+	entries, err := fs.ReadDir(refsPath)
+	if err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		if e.Name() == keepFile && e.Mode().IsRegular() {
+			continue
+		}
+
+		if err := butil.RemoveAll(
+			fs,
+			filepath.Join(refsPath, e.Name()),
+		); err != nil {
+			return err
+		}
+
+		needSync = true
+	}
+
+	if needSync {
+		s.syncBase = true
+	}
+
+	return nil
 }

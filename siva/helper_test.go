@@ -15,7 +15,10 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
-const testDir = "../_testdata/siva"
+const (
+	testDir       = "../_testdata/siva"
+	testRootedDir = "../_testdata/rooted"
+)
 
 func setupMemFS(t *testing.T, bucket int) (billy.Filesystem, []string) {
 	t.Helper()

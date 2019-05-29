@@ -38,41 +38,54 @@ var (
 )
 
 func (s *storageSuite) SetupTest() {
-	s.lib = setupLibrary(s.T(), "test", LibraryOptions{
-		Transactional: s.transactional,
+	fs, _ := setupFS(s.T(), testRootedDir, true, 0)
+	lib, err := NewLibrary("not-rooted", fs, LibraryOptions{
+		RootedRepo:    false,
+		Transactional: true,
 	})
+	require.NoError(s.T(), err)
+
+	s.lib = lib
 }
 
 func (s *storageSuite) TearDownTest() { s.lib = nil }
 
 func (s *storageSuite) TestReference_Storage() {
-	var require = s.Require()
+	var require = require.New(s.T())
 
-	r, err := s.lib.Get("github.com/foo/bar", borges.RWMode)
+	r, err := s.lib.Get("gitserver.com/a", borges.RWMode)
 	require.NoError(err)
+
+	iter, err := r.R().References()
+	require.NoError(err)
+
+	var currentRefs []*plumbing.Reference
+	require.NoError(iter.ForEach(func(ref *plumbing.Reference) error {
+		if !(ref.Name() == plumbing.HEAD &&
+			ref.Type() == plumbing.SymbolicReference) {
+			currentRefs = append(currentRefs, ref)
+		}
+
+		return nil
+	}))
+
+	require.True(len(currentRefs) > 0)
 
 	sto, ok := r.R().Storer.(*Storage)
 	require.True(ok)
 
-	master, err := sto.Reference("refs/heads/master")
-	require.NoError(err)
-	require.Equal(
-		plumbing.NewHash("cd908f91d6721f6f91db00d0cac3b5a12b322354"),
-		master.Hash(),
-	)
-
 	newRefs := []*plumbing.Reference{
 		plumbing.NewHashReference(
 			plumbing.NewBranchReferenceName("test"),
-			plumbing.NewHash("cd908f91d6721f6f91db00d0cac3b5a12b322354"),
+			plumbing.ZeroHash,
 		),
 		plumbing.NewHashReference(
 			plumbing.NewTagReferenceName("v0.0.0-test.1"),
-			plumbing.NewHash("cd908f91d6721f6f91db00d0cac3b5a12b322354"),
+			plumbing.ZeroHash,
 		),
 		plumbing.NewHashReference(
-			plumbing.NewRemoteReferenceName("origin", "master"),
-			plumbing.NewHash("cd908f91d6721f6f91db00d0cac3b5a12b322354"),
+			plumbing.NewRemoteReferenceName("origin", "foo"),
+			plumbing.ZeroHash,
 		),
 	}
 
@@ -82,27 +95,45 @@ func (s *storageSuite) TestReference_Storage() {
 
 	require.NoError(sto.Commit())
 
-	expected := []*plumbing.Reference{master}
-	expected = append(expected, newRefs...)
-	require.ElementsMatch(expected, s.readPackedRefs(sto))
+	expected := append(currentRefs, newRefs...)
+	require.ElementsMatch(expected, readPackedRefs(s.T(), sto))
 
 	require.NoError(sto.RemoveReference(newRefs[len(newRefs)-1].Name()))
 	require.NoError(sto.Commit())
 
 	expected = expected[:len(expected)-1]
-	require.ElementsMatch(expected, s.readPackedRefs(sto))
+	require.ElementsMatch(expected, readPackedRefs(s.T(), sto))
+
+	if s.lib.options.Transactional {
+		require.NoError(r.Commit())
+	}
+
+	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	require.NoError(err)
+
+	sto, ok = r.R().Storer.(*Storage)
+	require.True(ok)
+
+	_, err = sto.baseFS.Stat(packedRefsPath)
+	require.NoError(err)
+
+	entries, err := sto.baseFS.ReadDir(refsPath)
+	require.NoError(err)
+
+	require.True(len(entries) == 1)
+	require.True(entries[0].Name() == keepFile)
 }
 
-func (s *storageSuite) readPackedRefs(sto *Storage) []*plumbing.Reference {
-	s.T().Helper()
-	var require = require.New(s.T())
+func readPackedRefs(t *testing.T, sto *Storage) []*plumbing.Reference {
+	t.Helper()
+	var require = require.New(t)
 
 	var fs billy.Filesystem
 	switch st := sto.Storer.(type) {
 	case *filesystem.Storage:
 		fs = st.Filesystem()
 	case transactional.Storage:
-		transFs, err := getSivaFS(sto.base, "foo-bar.siva", s.lib.tmp, "test")
+		transFs, err := getSivaFS(sto.base, sto.path, sto.tmp, "test")
 		require.NoError(err)
 
 		fs = transFs
