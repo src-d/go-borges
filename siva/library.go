@@ -28,7 +28,8 @@ type Library struct {
 	tmp    billy.Filesystem
 	locReg *locationRegistry
 
-	options LibraryOptions
+	options  LibraryOptions
+	metadata *LibraryMetadata
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -67,6 +68,12 @@ func NewLibrary(
 	fs billy.Filesystem,
 	ops LibraryOptions,
 ) (*Library, error) {
+	metadata, err := loadLibraryMetadata(fs)
+	if err != nil {
+		// TODO: skip metadata if corrupted?
+		return nil, err
+	}
+
 	lr, err := newLocationRegistry(ops.RegistryCache)
 	if err != nil {
 		return nil, err
@@ -87,11 +94,12 @@ func NewLibrary(
 	}
 
 	return &Library{
-		id:      borges.LibraryID(id),
-		fs:      fs,
-		tmp:     tmp,
-		locReg:  lr,
-		options: ops,
+		id:       borges.LibraryID(id),
+		fs:       fs,
+		tmp:      tmp,
+		locReg:   lr,
+		options:  ops,
+		metadata: metadata,
 	}, nil
 }
 
@@ -270,4 +278,27 @@ func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 func (l *Library) Libraries() (borges.LibraryIterator, error) {
 	libs := []borges.Library{l}
 	return util.NewLibraryIterator(libs), nil
+}
+
+// Version returns version stored in metadata or -1 if not defined.
+func (l *Library) Version() int {
+	return l.metadata.Version()
+}
+
+// SetVersion sets the current version to the given number.
+func (l *Library) SetVersion(n int) {
+	if l.metadata == nil {
+		l.metadata = NewLibraryMetadata(-1)
+	}
+
+	l.metadata.SetVersion(n)
+}
+
+// SaveMetadata writes the metadata to the library yaml file.
+func (l *Library) SaveMetadata() error {
+	if l.metadata != nil && l.metadata.dirty {
+		return l.metadata.Save(l.fs)
+	}
+
+	return nil
 }
