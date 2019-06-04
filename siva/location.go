@@ -2,6 +2,8 @@ package siva
 
 import (
 	"os"
+	"sync"
+	"time"
 
 	borges "github.com/src-d/go-borges"
 
@@ -12,6 +14,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
+	"gopkg.in/src-d/go-git.v4/storage/memory"
 )
 
 // ErrMalformedData when checkpoint data is invalid.
@@ -28,6 +31,15 @@ type Location struct {
 	checkpoint *checkpoint
 	txer       *transactioner
 	metadata   *LocationMetadata
+
+	// references and config cache
+	refs    memory.ReferenceStorage
+	config  *config.Config
+	fSize   int64
+	fTime   time.Time
+	version int
+
+	m sync.Mutex
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -57,19 +69,93 @@ func newLocation(
 		lib:        lib,
 		checkpoint: cp,
 		metadata:   metadata,
+		version:    -1,
 	}
 
 	loc.txer = newTransactioner(loc, lib.locReg, lib.options.Timeout)
 	return loc, nil
 }
 
+func (l *Location) checkAndUpdate() error {
+	l.m.Lock()
+	l.m.Unlock()
+
+	stat, err := l.lib.fs.Stat(l.path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	version := l.lib.Version()
+	if l.fSize == stat.Size() && l.fTime == stat.ModTime() && l.version == version {
+		return nil
+	}
+
+	cp, err := newCheckpoint(l.lib.fs, l.path, false)
+	if err != nil {
+		return err
+	}
+	l.checkpoint = cp
+
+	err = l.updateCache()
+	if err != nil {
+		return err
+	}
+
+	l.fSize = stat.Size()
+	l.fTime = stat.ModTime()
+	l.version = version
+
+	return nil
+}
+
+func (l *Location) updateCache() error {
+	fs, err := l.fs(borges.ReadOnlyMode)
+	if err != nil {
+		return err
+	}
+
+	var sto storage.Storer
+	sto = filesystem.NewStorage(fs, l.cache())
+	refIter, err := sto.IterReferences()
+	if err != nil {
+		return err
+	}
+
+	refSto, err := newRefStorage(refIter)
+	if err != nil {
+		return err
+	}
+	l.refs = refSto
+
+	c, err := sto.Config()
+	if err != nil {
+		return err
+	}
+	l.config = c
+
+	return nil
+}
+
 // FS returns a filesystem for the location's siva file.
 func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
+	err := l.checkAndUpdate()
+	if err != nil {
+		return nil, err
+	}
+
+	return l.fs(mode)
+}
+
+func (l *Location) fs(mode borges.Mode) (sivafs.SivaFS, error) {
 	if mode == borges.ReadOnlyMode {
 		offset := l.checkpoint.Offset()
 
 		if l.metadata != nil {
-			if o := l.metadata.Offset(l.lib.Version()); o > 0 {
+			version := l.lib.Version()
+			if o := l.metadata.Offset(version); o > 0 {
 				offset = o
 			}
 		}
@@ -319,7 +405,11 @@ func (l *Location) repository(
 		}
 
 		sto = filesystem.NewStorageWithOptions(fs, l.cache(), gitStorerOptions)
-		sto = NewReadOnlyStorer(sto)
+		sto, err = NewReadOnlyStorerInitialized(sto, l.refs, l.config)
+		if err != nil {
+			return nil, err
+		}
+
 		if id != "" && l.lib.options.RootedRepo {
 			sto = NewRootedStorage(sto, string(id))
 		}
