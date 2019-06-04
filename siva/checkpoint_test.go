@@ -105,6 +105,10 @@ func (s *checkpointSuite) TestNew_Prev_Checkpoint_File() {
 
 			cp, err := newCheckpoint(s.fs, siva, false)
 			require.NoError(err)
+			require.Equal(int64(10), cp.offset)
+
+			err = cp.Apply()
+			require.NoError(err)
 			require.Equal(int64(-1), cp.offset)
 
 			info, err := s.fs.Lstat(siva)
