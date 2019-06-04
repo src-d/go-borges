@@ -333,18 +333,18 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 	}{
 		{
 			version: 0,
-			offset:  19386,
-			size:    19387,
+			offset:  21250,
+			size:    21251,
 		},
 		{
 			version: 1,
-			offset:  21407,
-			size:    2021,
+			offset:  23323,
+			size:    2073,
 		},
 		{
 			version: 2,
-			offset:  23484,
-			size:    2077,
+			offset:  25452,
+			size:    2129,
 		},
 	}
 
