@@ -58,11 +58,6 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 	}
 
 	c.offset = offset
-
-	if err := c.Apply(); err != nil {
-		return nil, err
-	}
-
 	return c, nil
 }
 
