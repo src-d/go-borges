@@ -3,6 +3,7 @@ package siva
 import (
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	borges "github.com/src-d/go-borges"
@@ -174,7 +175,8 @@ func readInt64(fs billy.Filesystem, path string) (int64, error) {
 		return -1, err
 	}
 
-	num, err := strconv.ParseInt(string(data[:n]), 10, 64)
+	str := strings.TrimSpace(string(data[:n]))
+	num, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		return -1, err
 	}

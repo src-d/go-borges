@@ -13,6 +13,7 @@ import (
 	butil "gopkg.in/src-d/go-billy.v4/util"
 	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
@@ -40,26 +41,67 @@ type ReadOnlyStorer struct {
 	// a HEAD file we need to overwrite the Reference method to be able to return a
 	// reference even if there's no any HEAD.
 	util.ReadOnlyStorer
+
+	refs   memory.ReferenceStorage
+	config *config.Config
 }
 
-// NewReadOnlyStorer returns a new *ReadOnlyStorer initialized with the given storage.Storer.
-func NewReadOnlyStorer(sto storage.Storer) *ReadOnlyStorer {
-	return &ReadOnlyStorer{util.ReadOnlyStorer{Storer: sto}}
+// NewReadOnlyStorer returns a new *ReadOnlyStorer initialized with the
+// given storage.Storer.
+func NewReadOnlyStorer(sto storage.Storer) (*ReadOnlyStorer, error) {
+	refIter, err := sto.IterReferences()
+	if err != nil {
+		return nil, err
+	}
+
+	refSto, err := newRefStorage(refIter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReadOnlyStorer{
+		ReadOnlyStorer: util.ReadOnlyStorer{Storer: sto},
+		refs:           refSto,
+	}, nil
+}
+
+// NewReadOnlyStorerInitialized creates a new *ReadOnlyStorer with preloaded
+// references and git config.
+func NewReadOnlyStorerInitialized(
+	sto storage.Storer,
+	refs memory.ReferenceStorage,
+	config *config.Config,
+) (*ReadOnlyStorer, error) {
+	return &ReadOnlyStorer{
+		ReadOnlyStorer: util.ReadOnlyStorer{Storer: sto},
+		refs:           refs,
+		config:         config,
+	}, nil
 }
 
 // Reference implements the storer.ReferenceStorer interface.
 func (s *ReadOnlyStorer) Reference(name plumbing.ReferenceName) (*plumbing.Reference, error) {
-	if ref, err := s.ReadOnlyStorer.Reference(name); err == nil || name != plumbing.HEAD {
+	if ref, err := s.refs.Reference(name); err == nil || name != plumbing.HEAD {
 		return ref, err
 	}
 
-	if master, err := s.ReadOnlyStorer.Reference(plumbing.Master); err == nil {
+	if master, err := s.refs.Reference(plumbing.Master); err == nil {
 		return master, err
 	}
 
 	return plumbing.NewHashReference(
 		plumbing.ReferenceName("refs/heads/zero"), plumbing.ZeroHash,
 	), nil
+}
+
+// IterReferences implements storer.ReferenceStorer.
+func (s *ReadOnlyStorer) IterReferences() (storer.ReferenceIter, error) {
+	return s.refs.IterReferences()
+}
+
+// CountLooseRefs implements storer.ReferenceStorer.
+func (s *ReadOnlyStorer) CountLooseRefs() (int, error) {
+	return s.refs.CountLooseRefs()
 }
 
 // Close implements io.Closer interface.
@@ -69,6 +111,19 @@ func (s *ReadOnlyStorer) Close() error {
 	}
 
 	return nil
+}
+
+// Config implements config.ConfigStorer interface.
+func (s *ReadOnlyStorer) Config() (*config.Config, error) {
+	if s.config == nil {
+		c, err := s.ReadOnlyStorer.Config()
+		if err != nil {
+			return nil, err
+		}
+		s.config = c
+	}
+
+	return s.config, nil
 }
 
 // Committer interface has transactional Commit and Close methods for a storer.
