@@ -201,6 +201,7 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if has {
 		return nil, borges.ErrRepositoryExists.New(id)
 	}
@@ -218,6 +219,23 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 	_, err = repo.R().CreateRemote(cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	remotes, err := repo.R().Remotes()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(remotes) == 1 {
+		c, err := repo.R().Config()
+		if err != nil {
+			return nil, err
+		}
+
+		c.Core.IsBare = true
+		if err := repo.R().Storer.SetConfig(c); err != nil {
+			return nil, err
+		}
 	}
 
 	return repo, nil
@@ -409,11 +427,6 @@ func (l *Location) repository(
 		if err != nil {
 			return nil, err
 		}
-
-		if id != "" && l.lib.options.RootedRepo {
-			sto = NewRootedStorage(sto, string(id))
-		}
-
 	case borges.RWMode:
 		if l.lib.options.Transactional {
 			if err := l.txer.Start(); err != nil {
@@ -435,13 +448,12 @@ func (l *Location) repository(
 
 			return nil, err
 		}
-
-		if id != "" && l.lib.options.RootedRepo {
-			sto = NewRootedStorage(sto, string(id))
-		}
-
 	default:
 		return nil, borges.ErrModeNotSupported.New(mode)
+	}
+
+	if id != "" && l.lib.options.RootedRepo {
+		sto = NewRootedStorage(sto, string(id))
 	}
 
 	return newRepository(id, sto, mode, l.lib.options.Transactional, l)
