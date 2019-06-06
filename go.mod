@@ -14,9 +14,7 @@ require (
 	gopkg.in/src-d/go-billy.v4 v4.3.0
 	gopkg.in/src-d/go-errors.v1 v1.0.0
 	gopkg.in/src-d/go-git-fixtures.v3 v3.3.0
-	gopkg.in/src-d/go-git.v4 v4.0.0-20190208090203-dcc9f375f4da
+	gopkg.in/src-d/go-git.v4 v4.11.0
 	gopkg.in/src-d/go-siva.v1 v1.5.0 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
-
-replace gopkg.in/src-d/go-git.v4 => github.com/src-d/go-git v0.0.0-20190322182544-79081164bccd
