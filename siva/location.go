@@ -40,7 +40,7 @@ type Location struct {
 	fTime   time.Time
 	version int
 
-	m sync.Mutex
+	m sync.RWMutex
 }
 
 var _ borges.Location = (*Location)(nil)
@@ -79,7 +79,7 @@ func newLocation(
 
 func (l *Location) checkAndUpdate() error {
 	l.m.Lock()
-	l.m.Unlock()
+	defer l.m.Unlock()
 
 	stat, err := l.lib.fs.Stat(l.path)
 	if os.IsNotExist(err) {
@@ -98,13 +98,13 @@ func (l *Location) checkAndUpdate() error {
 	if err != nil {
 		return err
 	}
-	l.checkpoint = cp
 
-	err = l.updateCache()
+	err = l.updateCache(cp)
 	if err != nil {
 		return err
 	}
 
+	l.checkpoint = cp
 	l.fSize = stat.Size()
 	l.fTime = stat.ModTime()
 	l.version = version
@@ -112,8 +112,8 @@ func (l *Location) checkAndUpdate() error {
 	return nil
 }
 
-func (l *Location) updateCache() error {
-	fs, err := l.fs(borges.ReadOnlyMode)
+func (l *Location) updateCache(cp *checkpoint) error {
+	fs, err := l.fs(borges.ReadOnlyMode, cp)
 	if err != nil {
 		return err
 	}
@@ -147,12 +147,16 @@ func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
 		return nil, err
 	}
 
-	return l.fs(mode)
+	l.m.RLock()
+	checkpoint := l.checkpoint
+	l.m.RUnlock()
+
+	return l.fs(mode, checkpoint)
 }
 
-func (l *Location) fs(mode borges.Mode) (sivafs.SivaFS, error) {
+func (l *Location) fs(mode borges.Mode, cp *checkpoint) (sivafs.SivaFS, error) {
 	if mode == borges.ReadOnlyMode {
-		offset := l.checkpoint.Offset()
+		offset := cp.Offset()
 
 		if l.metadata != nil {
 			version := l.lib.Version()
@@ -171,7 +175,7 @@ func (l *Location) fs(mode borges.Mode) (sivafs.SivaFS, error) {
 		)
 	}
 
-	if err := l.checkpoint.Apply(); err != nil {
+	if err := cp.Apply(); err != nil {
 		return nil, err
 	}
 
@@ -374,6 +378,8 @@ func (l *Location) Commit(mode borges.Mode) error {
 	}
 
 	defer l.txer.Stop()
+	l.m.RLock()
+	defer l.m.RUnlock()
 	if err := l.checkpoint.Reset(); err != nil {
 		return err
 	}
@@ -388,6 +394,8 @@ func (l *Location) Rollback(mode borges.Mode) error {
 	}
 
 	defer l.txer.Stop()
+	l.m.RLock()
+	defer l.m.RUnlock()
 	if err := l.checkpoint.Apply(); err != nil {
 		return err
 	}
@@ -410,10 +418,18 @@ func (l *Location) repository(
 	var sto storage.Storer
 	var fs billy.Filesystem
 
+	err := l.checkAndUpdate()
+	if err != nil {
+		return nil, err
+	}
+
 	switch mode {
 	case borges.ReadOnlyMode:
 		var err error
-		fs, err = l.FS(mode)
+
+		l.m.RLock()
+		defer l.m.RUnlock()
+		fs, err = l.fs(mode, l.checkpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -437,9 +453,12 @@ func (l *Location) repository(
 				return nil, err
 			}
 
+			l.m.RLock()
 			if err := l.checkpoint.Save(); err != nil {
+				l.m.RUnlock()
 				return nil, err
 			}
+			l.m.RUnlock()
 		}
 
 		sivaSto, err := NewStorage(l.lib.fs, l.path, l.lib.tmp,
