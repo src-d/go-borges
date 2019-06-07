@@ -29,6 +29,10 @@ func TestInitRepository(t *testing.T) {
 	_, err = memory.Stat("github.com/foo/bar/.git")
 	require.NoError(err)
 
+	fs := r.FS()
+	require.NotNil(fs)
+	_, err = fs.Stat("config")
+	require.NoError(err, "repository filesystem shoyld be accesible")
 }
 
 func TestInitRepository_Transactional(t *testing.T) {
@@ -56,6 +60,11 @@ func TestInitRepository_Transactional(t *testing.T) {
 
 	_, err = tmp.Stat(tmp.Join(r.temporalPath, "config"))
 	require.NoError(err)
+
+	fs := r.FS()
+	require.NotNil(fs)
+	_, err = fs.Stat("config")
+	require.NoError(err, "repository filesystem shoyld be accesible")
 }
 
 func TestOpenRepository(t *testing.T) {
@@ -70,6 +79,11 @@ func TestOpenRepository(t *testing.T) {
 	remote, err := r.R().Remote("origin")
 	require.NoError(err)
 	require.Equal("origin", remote.Config().Name)
+
+	fs := r.FS()
+	require.NotNil(fs)
+	_, err = fs.Stat("config")
+	require.NoError(err, "repository filesystem shoyld be accesible")
 }
 
 func TestRepository_Commit_OnNonTransactional(t *testing.T) {

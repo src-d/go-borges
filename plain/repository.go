@@ -4,7 +4,8 @@ import (
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
 
-	billy "gopkg.in/src-d/go-billy.v4/util"
+	"gopkg.in/src-d/go-billy.v4"
+	butil "gopkg.in/src-d/go-billy.v4/util"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
@@ -20,12 +21,13 @@ type Repository struct {
 	l            *Location
 	mode         borges.Mode
 	temporalPath string
+	fs           billy.Filesystem
 
 	*git.Repository
 }
 
 func initRepository(l *Location, id borges.RepositoryID) (*Repository, error) {
-	s, tempPath, err := repositoryStorer(l, id, borges.RWMode)
+	s, fs, tempPath, err := repositoryStorer(l, id, borges.RWMode)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +51,14 @@ func initRepository(l *Location, id borges.RepositoryID) (*Repository, error) {
 		l:            l,
 		mode:         borges.RWMode,
 		temporalPath: tempPath,
+		fs:           fs,
 		Repository:   r,
 	}, nil
 }
 
 // openRepository, is the basic operation of open a repository without any checking.
 func openRepository(l *Location, id borges.RepositoryID, mode borges.Mode) (*Repository, error) {
-	s, tempPath, err := repositoryStorer(l, id, mode)
+	s, fs, tempPath, err := repositoryStorer(l, id, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -70,45 +73,50 @@ func openRepository(l *Location, id borges.RepositoryID, mode borges.Mode) (*Rep
 		l:            l,
 		mode:         mode,
 		temporalPath: tempPath,
+		fs:           fs,
 		Repository:   r,
 	}, nil
 }
 
-func repositoryStorer(l *Location, id borges.RepositoryID, mode borges.Mode) (
-	s storage.Storer, tempPath string, err error) {
-
-	fs, err := l.fs.Chroot(l.RepositoryPath(id))
+func repositoryStorer(
+	l *Location,
+	id borges.RepositoryID,
+	mode borges.Mode,
+) (s storage.Storer, fs billy.Filesystem, tempPath string, err error) {
+	fs, err = l.fs.Chroot(l.RepositoryPath(id))
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	s = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
 
 	switch mode {
 	case borges.ReadOnlyMode:
-		return &util.ReadOnlyStorer{s}, "", nil
+		return &util.ReadOnlyStorer{Storer: s}, fs, "", nil
 	case borges.RWMode:
 		if l.opts.Transactional {
 			return repositoryTemporalStorer(l, id, s)
 		}
 
-		return s, "", nil
+		return s, fs, "", nil
 	default:
-		return nil, "", borges.ErrModeNotSupported.New(mode)
+		return nil, nil, "", borges.ErrModeNotSupported.New(mode)
 	}
 }
 
-func repositoryTemporalStorer(l *Location, id borges.RepositoryID, parent storage.Storer) (
-	s storage.Storer, tempPath string, err error) {
-
-	tempPath, err = billy.TempDir(l.opts.TemporalFilesystem, "transactions", "")
+func repositoryTemporalStorer(
+	l *Location,
+	id borges.RepositoryID,
+	parent storage.Storer,
+) (s storage.Storer, fs billy.Filesystem, tempPath string, err error) {
+	tempPath, err = butil.TempDir(l.opts.TemporalFilesystem, "transactions", "")
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	fs, err := l.opts.TemporalFilesystem.Chroot(tempPath)
+	fs, err = l.opts.TemporalFilesystem.Chroot(tempPath)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	ts := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
@@ -148,7 +156,7 @@ func (r *Repository) Close() error {
 }
 
 func (r *Repository) cleanupTemporal() error {
-	return billy.RemoveAll(r.l.opts.TemporalFilesystem, r.temporalPath)
+	return butil.RemoveAll(r.l.opts.TemporalFilesystem, r.temporalPath)
 }
 
 // Commit persists all the write operations done since was open, if the
@@ -167,4 +175,10 @@ func (r *Repository) Commit() (err error) {
 
 	err = ts.Commit()
 	return
+}
+
+// FS returns the filesystem to read or write directly to the repository or
+// nil if not available.
+func (r *Repository) FS() billy.Filesystem {
+	return r.fs
 }

@@ -8,6 +8,7 @@ import (
 	borges "github.com/src-d/go-borges"
 
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
+	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/config"
@@ -407,9 +408,12 @@ func (l *Location) repository(
 	mode borges.Mode,
 ) (borges.Repository, error) {
 	var sto storage.Storer
+	var fs billy.Filesystem
+
 	switch mode {
 	case borges.ReadOnlyMode:
-		fs, err := l.FS(mode)
+		var err error
+		fs, err = l.FS(mode)
 		if err != nil {
 			return nil, err
 		}
@@ -438,8 +442,7 @@ func (l *Location) repository(
 			}
 		}
 
-		var err error
-		sto, err = NewStorage(l.lib.fs, l.path, l.lib.tmp,
+		sivaSto, err := NewStorage(l.lib.fs, l.path, l.lib.tmp,
 			l.lib.options.Transactional, l.cache())
 		if err != nil {
 			if l.lib.options.Transactional {
@@ -448,6 +451,10 @@ func (l *Location) repository(
 
 			return nil, err
 		}
+
+		fs = sivaSto.filesystem()
+		sto = sivaSto
+
 	default:
 		return nil, borges.ErrModeNotSupported.New(mode)
 	}
@@ -456,7 +463,7 @@ func (l *Location) repository(
 		sto = NewRootedStorage(sto, string(id))
 	}
 
-	return newRepository(id, sto, mode, l.lib.options.Transactional, l)
+	return newRepository(id, sto, fs, mode, l.lib.options.Transactional, l)
 }
 
 func (l *Location) createMetadata() {

@@ -4,6 +4,7 @@ import (
 	"path"
 	"strings"
 
+	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
@@ -82,6 +83,9 @@ type Repository interface {
 	Close() error
 	// R returns the git.Repository.
 	R() *git.Repository
+	// FS returns the filesystem to read or write directly to the repository or
+	// nil if not available.
+	FS() billy.Filesystem
 }
 
 // LibraryID represents a Library identifier.
