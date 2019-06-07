@@ -6,6 +6,7 @@ import (
 
 	borges "github.com/src-d/go-borges"
 
+	billy "gopkg.in/src-d/go-billy.v4"
 	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/storage"
@@ -20,6 +21,7 @@ type Repository struct {
 	id            borges.RepositoryID
 	repo          *git.Repository
 	s             storage.Storer
+	fs            billy.Filesystem
 	mode          borges.Mode
 	transactional bool
 
@@ -36,6 +38,7 @@ var _ borges.Repository = (*Repository)(nil)
 func newRepository(
 	id borges.RepositoryID,
 	sto storage.Storer,
+	fs billy.Filesystem,
 	m borges.Mode,
 	transactional bool,
 	l *Location,
@@ -55,6 +58,7 @@ func newRepository(
 		id:            id,
 		repo:          repo,
 		s:             sto,
+		fs:            fs,
 		mode:          m,
 		transactional: transactional,
 		location:      l,
@@ -136,6 +140,12 @@ func (r *Repository) Close() error {
 // R implements borges.Repository interface.
 func (r *Repository) R() *git.Repository {
 	return r.repo
+}
+
+// FS returns the filesystem to read or write directly to the repository or
+// nil if not available.
+func (r *Repository) FS() billy.Filesystem {
+	return r.fs
 }
 
 // VersionOnCommit specifies the version that will be set when the changes

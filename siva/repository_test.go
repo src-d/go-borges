@@ -191,6 +191,16 @@ func (s *repoSuite) TestCommit_RW() {
 
 	head := createTagOnHead(s.T(), r, "new-tag")
 
+	// Create test file in repository FS
+	fs := r.FS()
+	require.NotNil(fs)
+
+	f, err := fs.Create("test-file")
+	require.NoError(err)
+
+	err = f.Close()
+	require.NoError(err)
+
 	var checker borges.Repository
 	if s.transactional {
 		// newly repositories opened before commit
@@ -214,6 +224,16 @@ func (s *repoSuite) TestCommit_RW() {
 	ref, err := checker.R().Tag("new-tag")
 	require.NoError(err)
 	require.Equal(head.Hash(), ref.Hash())
+
+	// Check that test file is in repository's filesystem
+	fs = checker.FS()
+	require.NotNil(fs)
+
+	_, err = fs.Stat("test-file")
+	require.NoError(err)
+
+	_, err = fs.Stat("config")
+	require.NoError(err)
 }
 
 func (s *repoSuite) TestClose_ReadOnly() {
