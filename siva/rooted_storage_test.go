@@ -26,9 +26,6 @@ func TestRootedIterateReferences(t *testing.T) {
 			expected: []*plumbing.Reference{
 				hr("refs/heads/fix", "e09387d4fb5e8ac82494955d03733a63f1936cd9"),
 				hr("refs/heads/master", "4debba8a88e808bdef8364026db890c5cb2900de"),
-				// now symbolic references are converted to hash references
-				// sr("HEAD", "refs/heads/fix"),
-				hr("HEAD", "e09387d4fb5e8ac82494955d03733a63f1936cd9"),
 			},
 		},
 		{
@@ -36,9 +33,6 @@ func TestRootedIterateReferences(t *testing.T) {
 			expected: []*plumbing.Reference{
 				hr("refs/heads/fix", "0c17762a2c24b2e9c01aea9ba3dc15e5176e68da"),
 				hr("refs/heads/master", "8c46128f7f8dca511321eb58940da6138a42ab42"),
-				// now symbolic references are converted to hash references
-				// sr("HEAD", "refs/heads/master"),
-				hr("HEAD", "8c46128f7f8dca511321eb58940da6138a42ab42"),
 
 				// remotes
 				hr("refs/remotes/origin/fix", "e09387d4fb5e8ac82494955d03733a63f1936cd9"),
@@ -51,9 +45,6 @@ func TestRootedIterateReferences(t *testing.T) {
 			expected: []*plumbing.Reference{
 				hr("refs/heads/css", "d47421c1ab4ab5d2e00ba5f0bbeccf9578dd3d5c"),
 				hr("refs/heads/master", "75129d3d3cc746b4cd335f9c01f1dad21d865403"),
-				// now symbolic references are converted to hash references
-				// sr("HEAD", "refs/heads/css"),
-				hr("HEAD", "d47421c1ab4ab5d2e00ba5f0bbeccf9578dd3d5c"),
 
 				// remotes
 				hr("refs/remotes/origin/fix", "0c17762a2c24b2e9c01aea9ba3dc15e5176e68da"),

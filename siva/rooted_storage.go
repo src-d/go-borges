@@ -294,6 +294,11 @@ func (r *refIter) Next() (*plumbing.Reference, error) {
 
 		name := string(ref.Name())
 		if strings.HasPrefix(name, r.prefix) {
+			// skip head
+			if strings.TrimPrefix(name, r.prefix) == plumbing.HEAD.String() {
+				continue
+			}
+
 			return r.sto.convertReferenceFromRemote(ref)
 		}
 	}
