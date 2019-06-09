@@ -247,6 +247,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 		"gitserver.com/b",
 		"gitserver.com/c",
 		"gitserver.com/d",
+		"gitserver.com/e",
 	}, repos)
 
 	last := l.LastVersion()
@@ -333,18 +334,18 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 	}{
 		{
 			version: 0,
-			offset:  21250,
-			size:    21251,
+			offset:  28358,
+			size:    28359,
 		},
 		{
 			version: 1,
-			offset:  23323,
-			size:    2073,
+			offset:  30589,
+			size:    2231,
 		},
 		{
 			version: 2,
-			offset:  25452,
-			size:    2129,
+			offset:  32876,
+			size:    2287,
 		},
 	}
 
