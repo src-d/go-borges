@@ -88,7 +88,17 @@ func repositoryStorer(
 		return nil, nil, "", err
 	}
 
-	s = filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+	c := l.opts.Cache
+	if c == nil {
+		c = cache.NewObjectLRUDefault()
+	}
+
+	opts := filesystem.Options{
+		ExclusiveAccess: l.opts.Performance,
+		KeepDescriptors: l.opts.Performance,
+	}
+
+	s = filesystem.NewStorageWithOptions(fs, c, opts)
 
 	switch mode {
 	case borges.ReadOnlyMode:

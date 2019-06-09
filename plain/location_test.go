@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-billy.v4/osfs"
-	"gopkg.in/src-d/go-git-fixtures.v3"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestLocation(t *testing.T) {
@@ -321,4 +322,29 @@ func TestLocationIterator_Next_Deep(t *testing.T) {
 	require.ElementsMatch(ids, []borges.RepositoryID{
 		"foo/qux", "foo/bar", "qux/bar",
 	})
+}
+
+func TestLocationCache(t *testing.T) {
+	require := require.New(t)
+
+	c := cache.NewObjectLRUDefault()
+	opts := &LocationOptions{
+		Cache:       c,
+		Performance: true,
+	}
+
+	loc := newLocationWithFixtures(require, opts)
+	repo, err := loc.Get("basic.git", borges.ReadOnlyMode)
+	require.NoError(err)
+
+	hash := plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5")
+
+	_, ok := c.Get(hash)
+	require.False(ok, "object should not be in cache")
+
+	_, err = repo.R().CommitObject(hash)
+	require.NoError(err, "object should be found in the repository")
+
+	_, ok = c.Get(hash)
+	require.True(ok, "object should be in cache")
 }
