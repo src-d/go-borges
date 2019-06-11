@@ -41,7 +41,7 @@ type LibraryOptions struct {
 	// is being done before error. 0 means default.
 	Timeout time.Duration
 	// RegistryCache is the maximum number of locations in the cache. A value
-	// of 0 disables the cache.
+	// of 0 will be set a default value of 10000.
 	RegistryCache int
 	// TempFS is the temporary filesystem to do transactions and write files.
 	TempFS billy.Filesystem
@@ -60,8 +60,11 @@ type LibraryOptions struct {
 
 var _ borges.Library = (*Library)(nil)
 
-// txTimeout is the default transaction timeout.
-const txTimeout = 60 * time.Second
+const (
+	// txTimeout is the default transaction timeout.
+	txTimeout         = 60 * time.Second
+	registryCacheSize = 10000
+)
 
 // NewLibrary creates a new siva.Library.
 func NewLibrary(
@@ -73,6 +76,10 @@ func NewLibrary(
 	if err != nil {
 		// TODO: skip metadata if corrupted?
 		return nil, err
+	}
+
+	if ops.RegistryCache <= 0 {
+		ops.RegistryCache = registryCacheSize
 	}
 
 	lr, err := newLocationRegistry(ops.RegistryCache)

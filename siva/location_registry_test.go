@@ -20,37 +20,27 @@ func TestRegistryNoCache(t *testing.T) {
 		RegistryCache: 0,
 	})
 
-	// locations are recreated when no transaction is being made
+	// to guarantee transactionality mustn't be two instances of the same
+	// location, so by default de RegistryCache size is greater than one,
+	// that is always location caching in transactional mode.
 
-	loc1, err := lib.Location("foo-bar")
-	require.NoError(err)
-	loc2, err := lib.Location("foo-bar")
-	require.NoError(err)
-
-	require.NotEqual(point(loc1), point(loc2))
+	require.True(lib.options.RegistryCache == registryCacheSize)
 
 	// when there is a transaction it reuses the location
 
-	loc1, err = lib.Location("foo-bar")
+	loc1, err := lib.Location("foo-bar")
 	require.NoError(err)
 
 	r, err := loc1.Get("github.com/foo/bar", borges.RWMode)
 	require.NoError(err)
 
-	loc2, err = lib.Location("foo-bar")
+	loc2, err := lib.Location("foo-bar")
 	require.NoError(err)
 
 	require.Equal(point(loc1), point(loc2))
 
-	// after finishing the transaction locations are regenerated again
-
 	err = r.Close()
 	require.NoError(err)
-
-	loc2, err = lib.Location("foo-bar")
-	require.NoError(err)
-
-	require.NotEqual(point(loc1), point(loc2))
 
 	// same case but with commit
 
@@ -64,11 +54,6 @@ func TestRegistryNoCache(t *testing.T) {
 
 	err = r.Commit()
 	require.True(ErrEmptyCommit.Is(err))
-
-	loc2, err = lib.Location("foo-bar")
-	require.NoError(err)
-
-	require.NotEqual(point(loc1), point(loc2))
 }
 
 func TestRegistryCache(t *testing.T) {
