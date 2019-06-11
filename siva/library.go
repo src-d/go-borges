@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	borges "github.com/src-d/go-borges"
@@ -23,11 +24,11 @@ var ErrLocationExists = errors.NewKind("location %s already exists")
 
 // Library represents a borges.Library implementation based on siva files.
 type Library struct {
-	id     borges.LibraryID
-	fs     billy.Filesystem
-	tmp    billy.Filesystem
-	locReg *locationRegistry
-
+	id       borges.LibraryID
+	fs       billy.Filesystem
+	tmp      billy.Filesystem
+	locReg   *locationRegistry
+	locMu    sync.Mutex
 	options  LibraryOptions
 	metadata *LibraryMetadata
 }
@@ -192,6 +193,9 @@ func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
 
 // AddLocation creates a new borges.Location if it does not exist.
 func (l *Library) AddLocation(id borges.LocationID) (borges.Location, error) {
+	l.locMu.Lock()
+	defer l.locMu.Unlock()
+
 	_, err := l.Location(id)
 	if err == nil {
 		return nil, ErrLocationExists.New(id)
