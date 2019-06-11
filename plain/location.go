@@ -6,6 +6,7 @@ import (
 
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
@@ -22,6 +23,12 @@ type LocationOptions struct {
 	// like transactional operation files. If empty and Transactional is true
 	// a new memfs filesystem will be used.
 	TemporalFilesystem billy.Filesystem
+	// Cache specifies the shared cache used in repositories. If not defined
+	// a new default cache will be created for each repository.
+	Cache cache.Object
+	// Performance enables performance options in read only git repositories
+	// (ExclusiveAccess and KeepDescriptors).
+	Performance bool
 }
 
 // Validate validates the fields and sets the default values.

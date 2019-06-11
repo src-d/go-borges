@@ -294,6 +294,11 @@ func (r *refIter) Next() (*plumbing.Reference, error) {
 
 		name := string(ref.Name())
 		if strings.HasPrefix(name, r.prefix) {
+			// skip head
+			if strings.TrimPrefix(name, r.prefix) == plumbing.HEAD.String() {
+				continue
+			}
+
 			return r.sto.convertReferenceFromRemote(ref)
 		}
 	}
@@ -456,19 +461,12 @@ func (t *treeIter) Next() (*object.Tree, error) {
 					return nil, err
 				}
 
-				tree, err := commit.Tree()
-				if err != nil {
-					return nil, err
-				}
-
-				if _, ok := t.seen[tree.Hash]; ok {
+				hash := commit.TreeHash
+				if _, ok := t.seen[hash]; ok {
 					continue
 				}
 
-				t.entries = tree.Entries
-				t.seen[tree.Hash] = struct{}{}
-
-				return tree, err
+				t.queue = []plumbing.Hash{hash}
 			}
 
 			tree, err := object.GetTree(t.sto, t.queue[0])
@@ -479,10 +477,6 @@ func (t *treeIter) Next() (*object.Tree, error) {
 			}
 			if err != nil {
 				return nil, err
-			}
-
-			if _, ok := t.seen[tree.Hash]; ok {
-				continue
 			}
 
 			t.entries = tree.Entries
@@ -503,16 +497,7 @@ func (t *treeIter) Next() (*object.Tree, error) {
 		}
 		t.seen[entry.Hash] = struct{}{}
 
-		tree, err := object.GetTree(t.sto, entry.Hash)
-		if err == plumbing.ErrObjectNotFound {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-
 		t.queue = append(t.queue, entry.Hash)
-		return tree, nil
 	}
 }
 
@@ -591,7 +576,6 @@ func (b *blobObjectIter) Next() (plumbing.EncodedObject, error) {
 			}
 
 			b.entries = tree.Entries
-			continue
 		}
 
 		entry := b.entries[0]
