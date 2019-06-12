@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -198,6 +199,12 @@ func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
+const (
+	urlSchema       = "git://%s.git"
+	fetchHEADStr    = "+HEAD:refs/remotes/%s/HEAD"
+	fetchRefSpecStr = "+refs/*:refs/remotes/%s/*"
+)
+
 // Init implements the borges.Location interface.
 func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 	id = toRepoID(id.String())
@@ -218,7 +225,11 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 
 	cfg := &config.RemoteConfig{
 		Name: id.String(),
-		URLs: []string{id.String()},
+		URLs: []string{fmt.Sprintf(urlSchema, id.String())},
+		Fetch: []config.RefSpec{
+			config.RefSpec(fmt.Sprintf(fetchHEADStr, id)),
+			config.RefSpec(fmt.Sprintf(fetchRefSpecStr, id)),
+		},
 	}
 
 	_, err = repo.R().CreateRemote(cfg)
@@ -248,6 +259,10 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 
 // Get implements the borges.Location interface.
 func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+	if id == "" {
+		return l.repository(id, mode)
+	}
+
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
