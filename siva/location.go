@@ -248,6 +248,10 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 
 // Get implements the borges.Location interface.
 func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+	if id == "" {
+		return l.repository(id, mode)
+	}
+
 	has, err := l.Has(id)
 	if err != nil {
 		return nil, err
