@@ -19,11 +19,14 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 )
 
-// ErrMalformedData when checkpoint data is invalid.
-var ErrMalformedData = errors.NewKind("malformed data")
+var (
+	// ErrMalformedData when checkpoint data is invalid.
+	ErrMalformedData = errors.NewKind("malformed data")
 
-// ErrInvalidSize means that the siva size could not be correctly retrieved.
-var ErrInvalidSize = errors.NewKind("invalid siva size")
+	// ErrInvalidSize means that the siva size could not be correctly
+	// retrieved.
+	ErrInvalidSize = errors.NewKind("invalid siva size")
+)
 
 // Location represents a siva file archiving several git repositories.
 type Location struct {
@@ -291,14 +294,17 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 
 // Has implements the borges.Location interface.
 func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
-	// Return false when the siva file does not exist. If repository is
-	// called it will create a new siva file.
-	_, err := l.lib.fs.Stat(l.path)
+	size, err := l.size()
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
+
 		return false, err
+	}
+
+	if size == 0 {
+		return false, nil
 	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)
@@ -540,6 +546,9 @@ func (l *Location) SaveMetadata() error {
 }
 
 func (l *Location) size() (uint64, error) {
+	l.m.RLock()
+	defer l.m.RUnlock()
+
 	stat, err := l.lib.fs.Stat(l.path)
 	if err != nil {
 		return 0, err

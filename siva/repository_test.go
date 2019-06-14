@@ -454,15 +454,15 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 	// for the library because its storage is not thread safe. Trying
 	// to make concurrent operations on the files hold by a memfs will
 	// raise a panic.
-	var require = require.New(t)
+	var req = require.New(t)
 
 	fs, _ := setupOSFS(t, 0)
 
 	lib, err := NewLibrary("test", fs, LibraryOptions{Transactional: true})
-	require.NoError(err)
+	req.NoError(err)
 
 	loc, err := lib.Location("foo-qux")
-	require.NoError(err)
+	req.NoError(err)
 
 	const (
 		tag          = "new-tag"
@@ -470,38 +470,61 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 	)
 
 	var (
-		w     sync.WaitGroup
+		wg    sync.WaitGroup
 		count int
 	)
 
+	errs := make(chan error, transactions)
 	for i := 0; i < transactions; i++ {
-		w.Add(1)
+		wg.Add(1)
 		go func(id int) {
-			defer w.Done()
-
-			r, err := loc.Get("github.com/foo/qux", borges.RWMode)
-			require.NoError(err)
-
-			name := fmt.Sprintf("%s-%d", tag, id)
-			createTagOnHead(t, r, name)
-			require.NoError(r.Commit())
+			errs <- concurrentCreateTag(loc, tag, id)
+			wg.Done()
 		}(count)
 		count++
 	}
-	w.Wait()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		req.NoError(err)
+	}
 
 	r, err := loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
-	require.NoError(err)
+	req.NoError(err)
 
 	head, err := r.R().Head()
-	require.NoError(err)
+	req.NoError(err)
 
 	for i := 0; i < transactions; i++ {
 		name := fmt.Sprintf("%s-%d", tag, i)
 		ref, err := r.R().Tag(name)
-		require.NoError(err)
-		require.Equal(head.Hash(), ref.Hash())
+		req.NoError(err)
+		req.Equal(head.Hash(), ref.Hash())
 	}
 
-	require.NoError(r.Close())
+	req.NoError(r.Close())
+}
+
+func concurrentCreateTag(
+	loc borges.Location,
+	tag string,
+	id int,
+) error {
+	r, err := loc.Get("github.com/foo/qux", borges.RWMode)
+	if err != nil {
+		return err
+	}
+
+	head, err := r.R().Head()
+	if err != nil {
+		return err
+	}
+
+	name := fmt.Sprintf("%s-%d", tag, id)
+	_, err = r.R().CreateTag(name, head.Hash(), nil)
+	if err != nil {
+		return err
+	}
+
+	return r.Commit()
 }
