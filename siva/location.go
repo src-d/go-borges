@@ -121,6 +121,7 @@ func (l *Location) updateCache(cp *checkpoint) error {
 	if err != nil {
 		return err
 	}
+	defer fs.Sync()
 
 	var sto storage.Storer
 	sto = filesystem.NewStorage(fs, l.cache())
@@ -366,6 +367,7 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 			remotes: nil,
 		}, nil
 	}
+	defer repo.Close()
 
 	if err != nil {
 		return nil, err
@@ -463,8 +465,9 @@ func (l *Location) repository(
 			}
 		}
 
+		sync := fs.(sivafs.SivaSync)
 		sto = filesystem.NewStorageWithOptions(fs, l.cache(), gitStorerOptions)
-		sto, err = NewReadOnlyStorerInitialized(sto, l.refs, l.config)
+		sto, err = NewReadOnlyStorerInitialized(sto, sync, l.refs, l.config)
 		if err != nil {
 			return nil, err
 		}

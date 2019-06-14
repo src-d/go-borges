@@ -44,11 +44,12 @@ type ReadOnlyStorer struct {
 
 	refs   memory.ReferenceStorage
 	config *config.Config
+	sync   sivafs.SivaSync
 }
 
 // NewReadOnlyStorer returns a new *ReadOnlyStorer initialized with the
 // given storage.Storer.
-func NewReadOnlyStorer(sto storage.Storer) (*ReadOnlyStorer, error) {
+func NewReadOnlyStorer(sto storage.Storer, sync sivafs.SivaSync) (*ReadOnlyStorer, error) {
 	refIter, err := sto.IterReferences()
 	if err != nil {
 		return nil, err
@@ -61,6 +62,7 @@ func NewReadOnlyStorer(sto storage.Storer) (*ReadOnlyStorer, error) {
 
 	return &ReadOnlyStorer{
 		ReadOnlyStorer: util.ReadOnlyStorer{Storer: sto},
+		sync:           sync,
 		refs:           refSto,
 	}, nil
 }
@@ -69,11 +71,13 @@ func NewReadOnlyStorer(sto storage.Storer) (*ReadOnlyStorer, error) {
 // references and git config.
 func NewReadOnlyStorerInitialized(
 	sto storage.Storer,
+	sync sivafs.SivaSync,
 	refs memory.ReferenceStorage,
 	config *config.Config,
 ) (*ReadOnlyStorer, error) {
 	return &ReadOnlyStorer{
 		ReadOnlyStorer: util.ReadOnlyStorer{Storer: sto},
+		sync:           sync,
 		refs:           refs,
 		config:         config,
 	}, nil
@@ -106,6 +110,13 @@ func (s *ReadOnlyStorer) CountLooseRefs() (int, error) {
 
 // Close implements io.Closer interface.
 func (s *ReadOnlyStorer) Close() error {
+	if s.sync != nil {
+		err := s.sync.Sync()
+		if err != nil {
+			return err
+		}
+	}
+
 	if c, ok := s.ReadOnlyStorer.Storer.(io.Closer); ok {
 		return c.Close()
 	}
