@@ -2,12 +2,18 @@ package libraries
 
 import (
 	"io"
+	"io/ioutil"
 	"testing"
 
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/plain"
 	"github.com/src-d/go-borges/siva"
+	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 
+	"os"
+
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -158,4 +164,100 @@ func (s *librariesSuite) TestFilteredLibraries() {
 
 	_, err = iter.Next()
 	require.EqualError(err, io.EOF.Error())
+}
+
+func TestLibrariesRepositoriesError(t *testing.T) {
+	require := require.New(t)
+
+	// prepare plain library
+
+	idqux := borges.LocationID("qux")
+	lqux, _ := plain.NewLocation(idqux, osfs.New("/does/not/exist/qux"), nil)
+	idbar := borges.LocationID("bar")
+	lbar, _ := plain.NewLocation(idbar, osfs.New("/does/not/exist/bar"), nil)
+	idbaz := borges.LocationID("baz")
+	lbaz, _ := plain.NewLocation(idbaz, memfs.New(), nil)
+
+	nbaz := borges.RepositoryID("github.com/source/bar")
+	_, err := lbaz.Init(nbaz)
+	require.NoError(err)
+
+	plainLib := plain.NewLibrary(borges.LibraryID("broken"))
+	plainLib.AddLocation(lqux)
+	plainLib.AddLocation(lbar)
+	plainLib.AddLocation(lbaz)
+
+	// prepare siva library
+
+	path, err := ioutil.TempDir("", "go-borges-siva")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	fs := osfs.New(path)
+
+	f, err := fs.Create("bad1.siva")
+	require.NoError(err)
+	_, err = f.Write([]byte("bad"))
+	require.NoError(err)
+	err = f.Close()
+	require.NoError(err)
+
+	f, err = fs.Create("bad2.siva")
+	require.NoError(err)
+	_, err = f.Write([]byte("bad"))
+	require.NoError(err)
+	err = f.Close()
+	require.NoError(err)
+
+	orig, err := os.Open("../_testdata/rooted/cf2e799463e1a00dbd1addd2003b0c7db31dbfe2.siva")
+	require.NoError(err)
+
+	f, err = fs.Create("good.siva")
+	require.NoError(err)
+	_, err = io.Copy(f, orig)
+	require.NoError(err)
+	err = f.Close()
+	require.NoError(err)
+
+	err = orig.Close()
+	require.NoError(err)
+
+	sivaLib, err := siva.NewLibrary("siva", fs, siva.LibraryOptions{
+		RootedRepo: true,
+	})
+	require.NoError(err)
+
+	lib := New(Options{})
+	lib.Add(plainLib)
+	lib.Add(sivaLib)
+
+	it, err := lib.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	var errors int
+	var repos int
+	var count int
+	for {
+		repo, err := it.Next()
+		if err == io.EOF {
+			break
+		}
+
+		if err == nil {
+			repo.Close()
+			repos++
+		} else {
+			errors++
+		}
+
+		count++
+
+		if count > 10 {
+			break
+		}
+	}
+
+	require.Equal(10, count)
+	require.Equal(4, errors)
+	require.Equal(6, repos)
 }
