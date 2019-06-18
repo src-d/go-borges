@@ -78,7 +78,7 @@ func (c *checkpoint) Apply() error {
 			return c.reset()
 		}
 
-		f, err := c.baseFs.Open(c.path)
+		f, err := c.baseFs.OpenFile(c.path, os.O_RDWR, 0664)
 		if err != nil {
 			return ErrCannotUseSivaFile.Wrap(err, c.path)
 		}
