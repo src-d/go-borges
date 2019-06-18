@@ -91,8 +91,8 @@ func (s *checkpointSuite) TestNew() {
 			require.NotNil(cp)
 			require.Equal(s.fs, cp.baseFs)
 			require.Equal(siva, cp.path)
-			require.Equal(cpPath, cp.persist)
-			require.Equal(int64(-1), cp.offset)
+			require.Equal(cpPath, cp.cpPath)
+			require.Equal(infoBefore.Size(), cp.offset)
 
 			infoAfter, err := s.fs.Lstat(siva)
 			require.NoError(err)
@@ -118,7 +118,7 @@ func (s *checkpointSuite) TestNew_Prev_Checkpoint_File() {
 
 			err = cp.Apply()
 			require.NoError(err)
-			require.Equal(int64(-1), cp.offset)
+			require.Equal(int64(10), cp.offset)
 
 			info, err := s.fs.Lstat(siva)
 			require.NoError(err)
@@ -159,8 +159,8 @@ func (s *checkpointSuite) TestNew_Create() {
 	require.NotNil(cp)
 	require.Equal(s.fs, cp.baseFs)
 	require.Equal(siva, cp.path)
-	require.Equal(siva+checkpointExtension, cp.persist)
-	require.Equal(int64(-1), cp.offset)
+	require.Equal(siva+checkpointExtension, cp.cpPath)
+	require.Equal(int64(0), cp.offset)
 }
 
 func (s *checkpointSuite) TestApply() {
@@ -172,14 +172,12 @@ func (s *checkpointSuite) TestApply() {
 			require.NoError(err)
 			require.NotNil(cp)
 
-			cp.offset = int64(10)
 			require.NoError(cp.Apply())
 
 			info, err := s.fs.Lstat(siva)
 			require.NoError(err)
 
-			require.Equal(int64(10), info.Size())
-			require.Equal(int64(-1), cp.offset)
+			require.Equal(info.Size(), cp.offset)
 		})
 	}
 }
@@ -224,13 +222,15 @@ func (s *checkpointSuite) TestReset() {
 			info, err := s.fs.Lstat(siva)
 			require.NoError(err)
 			require.Equal(info.Size(), cp.offset)
+			require.True(cp.persisted)
 
 			cpPath := siva + checkpointExtension
 			_, err = s.fs.Lstat(cpPath)
 			require.NoError(err)
 
 			require.NoError(cp.Reset())
-			require.Equal(int64(-1), cp.offset)
+			require.Equal(info.Size(), cp.offset)
+			require.False(cp.persisted)
 			_, err = s.fs.Lstat(cpPath)
 			require.True(os.IsNotExist(err))
 		})

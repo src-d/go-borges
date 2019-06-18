@@ -188,6 +188,7 @@ func (s *locationSuite) TestHasURL() {
 		"file://github.com/src-d/file",
 		"git@github.com:src-d/ssh",
 	}
+
 	repoIDs := []string{
 		"github.com/src-d/https",
 		"github.com/src-d/http",

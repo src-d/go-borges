@@ -24,19 +24,25 @@ const checkpointExtension = ".checkpoint"
 // checkpoint tracks the status of a siva file and creates checkpoints to be
 // able to return back to a known state of that siva file.
 type checkpoint struct {
-	offset  int64
-	baseFs  billy.Filesystem
-	path    string
-	persist string
-	mu      sync.RWMutex
+	offset    int64
+	baseFs    billy.Filesystem
+	path      string
+	cpPath    string
+	persisted bool
+	mu        sync.RWMutex
 }
 
 // newCheckpoint builds a new Checkpoint.
 func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, error) {
-	persist := path + checkpointExtension
+	cpPath := path + checkpointExtension
 
-	if _, err := fs.Stat(path); err != nil && os.IsNotExist(err) {
-		cleanup(fs, persist)
+	info, err := fs.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, ErrCannotUseCheckpointFile.Wrap(err, path)
+		}
+
+		cleanup(fs, cpPath)
 		if !create {
 			return nil, ErrCannotUseSivaFile.Wrap(
 				borges.ErrLocationNotExists.New(path), path)
@@ -44,18 +50,25 @@ func newCheckpoint(fs billy.Filesystem, path string, create bool) (*checkpoint, 
 	}
 
 	c := &checkpoint{
-		baseFs:  fs,
-		path:    path,
-		persist: persist,
+		baseFs:    fs,
+		path:      path,
+		cpPath:    cpPath,
+		persisted: true,
 	}
 
-	offset, err := readInt64(fs, persist)
+	offset, err := readInt64(fs, cpPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, ErrCannotUseCheckpointFile.Wrap(err, path)
 		}
 
-		offset = -1
+		if info == nil {
+			offset = 0
+		} else {
+			offset = info.Size()
+		}
+
+		c.persisted = false
 	}
 
 	c.offset = offset
@@ -68,31 +81,36 @@ func (c *checkpoint) Apply() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.offset > 0 {
-		info, err := c.baseFs.Stat(c.path)
-		if err != nil {
-			return err
-		}
+	if !c.persisted {
+		return c.reset()
+	}
 
-		if info.Size() == c.offset {
-			return c.reset()
-		}
-
-		f, err := c.baseFs.OpenFile(c.path, os.O_RDWR, 0664)
-		if err != nil {
+	if c.offset == 0 {
+		if err := c.baseFs.Remove(c.path); err != nil {
 			return ErrCannotUseSivaFile.Wrap(err, c.path)
 		}
-		defer f.Close()
 
-		if err := f.Truncate(c.offset); err != nil {
-			return ErrCannotUseSivaFile.Wrap(err, c.path)
+		return c.reset()
+	}
 
-		}
-	} else if c.offset == 0 {
-		err := c.baseFs.Remove(c.path)
-		if err != nil {
-			return ErrCannotUseSivaFile.Wrap(err, c.path)
-		}
+	info, err := c.baseFs.Stat(c.path)
+	if err != nil {
+		return err
+	}
+
+	if info.Size() == c.offset {
+		return c.reset()
+	}
+
+	f, err := c.baseFs.OpenFile(c.path, os.O_RDWR, 0664)
+	if err != nil {
+		return ErrCannotUseSivaFile.Wrap(err, c.path)
+	}
+	defer f.Close()
+
+	if err := f.Truncate(c.offset); err != nil {
+		return ErrCannotUseSivaFile.Wrap(err, c.path)
+
 	}
 
 	return c.reset()
@@ -109,15 +127,19 @@ func (c *checkpoint) Save() error {
 	if err != nil && !os.IsNotExist(err) {
 		return ErrCannotUseSivaFile.Wrap(err, c.path)
 	}
+
 	if err == nil {
 		size = info.Size()
 	}
 
-	if err := writeInt64(c.baseFs, c.persist, size); err != nil {
-		return ErrCannotUseCheckpointFile.Wrap(err, c.path)
+	if !c.persisted || size != c.offset {
+		if err := writeInt64(c.baseFs, c.cpPath, size); err != nil {
+			return ErrCannotUseCheckpointFile.Wrap(err, c.path)
+		}
 	}
 
 	c.offset = size
+	c.persisted = true
 	return nil
 }
 
@@ -130,11 +152,24 @@ func (c *checkpoint) Reset() error {
 }
 
 func (c *checkpoint) reset() error {
-	if err := cleanup(c.baseFs, c.persist); err != nil {
+	if err := cleanup(c.baseFs, c.cpPath); err != nil {
 		return ErrCannotUseCheckpointFile.Wrap(err, c.path)
 	}
 
-	c.offset = -1
+	info, err := c.baseFs.Stat(c.path)
+	if err != nil && !os.IsNotExist(err) {
+		return ErrCannotUseSivaFile.Wrap(err, c.path)
+	}
+
+	var offset int64
+	if info == nil {
+		offset = 0
+	} else {
+		offset = info.Size()
+	}
+
+	c.offset = offset
+	c.persisted = false
 	return nil
 }
 
@@ -143,10 +178,6 @@ func (c *checkpoint) reset() error {
 func (c *checkpoint) Offset() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
-	if c.offset < 0 {
-		return 0
-	}
 
 	return uint64(c.offset)
 }
