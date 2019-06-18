@@ -2,13 +2,16 @@ package plain
 
 import (
 	"fmt"
+	"io"
 	"testing"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/test"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 )
 
 func newLibrary(s suite.Suite, name string) *Library {
@@ -54,4 +57,53 @@ func TestLibrary(t *testing.T) {
 	}
 
 	suite.Run(t, s)
+}
+
+func TestLibraryRepositoriesError(t *testing.T) {
+	require := require.New(t)
+	idqux := borges.LocationID("qux")
+	lqux, _ := NewLocation(idqux, osfs.New("/does/not/exist/qux"), nil)
+	idbar := borges.LocationID("bar")
+	lbar, _ := NewLocation(idbar, osfs.New("/does/not/exist/bar"), nil)
+	idbaz := borges.LocationID("baz")
+	lbaz, _ := NewLocation(idbaz, memfs.New(), nil)
+
+	l := NewLibrary(borges.LibraryID("broken"))
+	l.AddLocation(lqux)
+	l.AddLocation(lbar)
+	l.AddLocation(lbaz)
+
+	nbaz := borges.RepositoryID("github.com/source/bar")
+	_, err := lbaz.Init(nbaz)
+	require.NoError(err)
+
+	it, err := l.Repositories(borges.ReadOnlyMode)
+	require.NoError(err)
+
+	var errors int
+	var repos int
+	var count int
+	for {
+		repo, err := it.Next()
+		if err == io.EOF {
+			break
+		}
+
+		if err == nil {
+			repo.Close()
+			repos++
+		} else {
+			errors++
+		}
+
+		count++
+
+		if count > 3 {
+			break
+		}
+	}
+
+	require.Equal(3, count)
+	require.Equal(2, errors)
+	require.Equal(1, repos)
 }

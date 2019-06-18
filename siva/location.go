@@ -367,11 +367,10 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 			remotes: nil,
 		}, nil
 	}
-	defer repo.Close()
-
 	if err != nil {
 		return nil, err
 	}
+	defer repo.Close()
 
 	cfg, err := repo.R().Config()
 	if err != nil {

@@ -28,11 +28,12 @@ func (iter *LocationRepositoryIterator) Next() (borges.Repository, error) {
 	}
 
 	if iter.iter == nil {
-		var err error
-		iter.iter, err = iter.locs[0].Repositories(iter.mode)
+		i, err := iter.locs[0].Repositories(iter.mode)
 		if err != nil {
+			iter.locs = iter.locs[1:]
 			return nil, err
 		}
+		iter.iter = i
 	}
 
 	r, err := iter.iter.Next()
