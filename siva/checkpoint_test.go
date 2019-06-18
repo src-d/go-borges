@@ -3,6 +3,7 @@ package siva
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -27,6 +28,7 @@ func TestCheckpoint_Broken_Siva_File_No_Checkpoint(t *testing.T) {
 
 	path, err := ioutil.TempDir("", "go-borges-siva")
 	require.NoError(err)
+	defer os.RemoveAll(path)
 
 	fs := osfs.New(path)
 
@@ -57,10 +59,17 @@ var _ suite.SetupTestSuite = (*checkpointSuite)(nil)
 var _ suite.TearDownTestSuite = (*checkpointSuite)(nil)
 
 func (s *checkpointSuite) SetupTest() {
-	s.fs, s.sivas = setupMemFS(s.T(), 0)
+	s.fs, s.sivas = setupOSFS(s.T(), 0)
 }
 
 func (s *checkpointSuite) TearDownTest() {
+	if s.fs != nil {
+		root := s.fs.Root()
+		if root != "" && root != "/" && strings.Contains(root, "go-borges") {
+			os.RemoveAll(root)
+		}
+	}
+
 	s.fs = nil
 	s.sivas = nil
 }
@@ -75,7 +84,7 @@ func (s *checkpointSuite) TestNew() {
 
 			cpPath := siva + checkpointExtension
 			_, err = s.fs.Lstat(cpPath)
-			require.EqualError(err, os.ErrNotExist.Error())
+			require.True(os.IsNotExist(err))
 
 			cp, err := newCheckpoint(s.fs, siva, false)
 			require.NoError(err)
@@ -185,7 +194,7 @@ func (s *checkpointSuite) TestSave() {
 
 			cpPath := siva + checkpointExtension
 			_, err = s.fs.Lstat(cpPath)
-			require.EqualError(err, os.ErrNotExist.Error())
+			require.True(os.IsNotExist(err))
 
 			cp, err := newCheckpoint(s.fs, siva, false)
 			require.NoError(err)
@@ -223,7 +232,7 @@ func (s *checkpointSuite) TestReset() {
 			require.NoError(cp.Reset())
 			require.Equal(int64(-1), cp.offset)
 			_, err = s.fs.Lstat(cpPath)
-			require.EqualError(err, os.ErrNotExist.Error())
+			require.True(os.IsNotExist(err))
 		})
 	}
 }
