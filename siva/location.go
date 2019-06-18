@@ -295,17 +295,14 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 
 // Has implements the borges.Location interface.
 func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
-	size, err := l.size()
-	if err != nil {
-		if os.IsNotExist(err) {
+	if l.lib.options.Transactional {
+		l.m.RLock()
+		offsetZero := l.checkpoint.Offset() == 0
+		l.m.RUnlock()
+
+		if offsetZero {
 			return false, nil
 		}
-
-		return false, err
-	}
-
-	if size == 0 {
-		return false, nil
 	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)

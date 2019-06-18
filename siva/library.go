@@ -223,7 +223,6 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 	}
 
 	l.locReg.Add(loc)
-
 	return loc, nil
 }
 
