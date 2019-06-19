@@ -2,10 +2,13 @@ package siva
 
 import (
 	"testing"
+	"time"
 
 	"github.com/src-d/go-borges"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 func TestRootedIterateReferences(t *testing.T) {
@@ -414,4 +417,94 @@ func sr(n, t string) *plumbing.Reference {
 	return plumbing.NewSymbolicReference(
 		plumbing.ReferenceName(n),
 		plumbing.ReferenceName(t))
+}
+
+func TestRootedEmptyTree(t *testing.T) {
+	require := require.New(t)
+
+	options := LibraryOptions{}
+
+	fs := memfs.New()
+	lib, err := NewLibrary("rooted", fs, options)
+	require.NoError(err)
+
+	loc, err := lib.AddLocation(borges.LocationID("location"))
+	require.NoError(err)
+
+	repo, err := loc.Init(borges.RepositoryID("repo"))
+	require.NoError(err)
+
+	author := object.Signature{
+		Name:  "author",
+		Email: "email",
+		When:  time.Now(),
+	}
+
+	emptyTree := plumbing.NewHash("4b825dc642cb6eb9a060e54bf8d69288fbee4904")
+
+	r := repo.R()
+	sto := r.Storer
+	commit := &object.Commit{
+		Author:       author,
+		Committer:    author,
+		Message:      "message",
+		TreeHash:     emptyTree,
+		ParentHashes: nil,
+	}
+
+	obj := sto.NewEncodedObject()
+	err = commit.Encode(obj)
+	require.NoError(err)
+
+	c, err := sto.SetEncodedObject(obj)
+	require.NoError(err)
+
+	tree := &object.Tree{
+		Entries: nil,
+	}
+
+	obj = sto.NewEncodedObject()
+	err = tree.Encode(obj)
+	require.NoError(err)
+
+	tr, err := sto.SetEncodedObject(obj)
+	require.NoError(err)
+	require.Equal(emptyTree, tr)
+
+	name := plumbing.NewRemoteReferenceName("repo", "master")
+	head := plumbing.NewRemoteReferenceName("repo", "HEAD")
+
+	err = sto.SetReference(plumbing.NewHashReference(name, c))
+	require.NoError(err)
+	err = sto.SetReference(plumbing.NewHashReference(head, c))
+	require.NoError(err)
+	err = sto.SetReference(plumbing.NewHashReference(plumbing.HEAD, c))
+	require.NoError(err)
+
+	err = repo.Close()
+	require.NoError(err)
+
+	options = LibraryOptions{
+		RootedRepo: true,
+	}
+
+	lib, err = NewLibrary("rooted", fs, options)
+	require.NoError(err)
+
+	loc, err = lib.Location(borges.LocationID("location"))
+	require.NoError(err)
+
+	repo, err = loc.Get("repo", borges.ReadOnlyMode)
+	require.NoError(err)
+
+	it, err := repo.R().BlobObjects()
+	require.NoError(err)
+
+	err = it.ForEach(func(b *object.Blob) error {
+		return nil
+	})
+	require.NoError(err)
+
+	err = repo.Close()
+	require.NoError(err)
 }

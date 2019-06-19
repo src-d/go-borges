@@ -574,8 +574,10 @@ func (b *blobObjectIter) Next() (plumbing.EncodedObject, error) {
 			if err != nil {
 				return nil, err
 			}
-
 			b.entries = tree.Entries
+
+			// restarts the loop to make sure that the tree contains entries
+			continue
 		}
 
 		entry := b.entries[0]
