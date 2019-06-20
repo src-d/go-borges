@@ -310,6 +310,8 @@ func (s *Storage) PackfileWriter() (io.WriteCloser, error) {
 
 // Close finishes writes to siva file and cleans up temporary storage.
 func (s *Storage) Close() (err error) {
+	defer s.cleanup()
+
 	if c, ok := s.Storer.(io.Closer); ok {
 		err := c.Close()
 		if err != nil {
@@ -325,7 +327,6 @@ func (s *Storage) Close() (err error) {
 		err = sErr
 	}
 
-	s.cleanup()
 	return err
 }
 

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	billy "gopkg.in/src-d/go-billy.v4"
+	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-git.v4/storage"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 	"gopkg.in/src-d/go-git.v4/storage/transactional"
 
@@ -49,6 +51,96 @@ func (s *storageSuite) SetupTest() {
 }
 
 func (s *storageSuite) TearDownTest() { s.lib = nil }
+
+func (s *storageSuite) TestCleanupTmp() {
+	var req = require.New(s.T())
+	req.True(true)
+
+	fs := s.lib.tmp
+
+	entries, err := fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) == 0)
+
+	// check tmp files are removed on commit
+
+	r, err := s.lib.Get("gitserver.com/a", borges.RWMode)
+	req.NoError(err)
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) != 0)
+
+	req.True(ErrEmptyCommit.Is(r.Commit()))
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) == 0)
+
+	// check tmp files are removed on close
+
+	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	req.NoError(err)
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) != 0)
+
+	req.NoError(r.Close())
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) == 0)
+
+	// check tmp files are removed on failed commit
+
+	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	req.NoError(err)
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) != 0)
+
+	sto, ok := r.R().Storer.(*Storage)
+	req.True(ok)
+
+	sto.Storer = &fakeStorer{sto.Storer}
+	r.R().Storer = sto
+	req.EqualError(r.Commit(), errFake.New().Error())
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) == 0)
+
+	// check tmp files are removed on failed close
+
+	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	req.NoError(err)
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) != 0)
+
+	sto, ok = r.R().Storer.(*Storage)
+	req.True(ok)
+
+	sto.Storer = &fakeStorer{sto.Storer}
+	r.R().Storer = sto
+	req.EqualError(r.Close(), errFake.New().Error())
+
+	entries, err = fs.ReadDir("/")
+	req.NoError(err)
+	req.True(len(entries) == 0)
+}
+
+type fakeStorer struct {
+	storage.Storer
+}
+
+var errFake = errors.NewKind("fake error")
+
+func (s *fakeStorer) Close() error  { return errFake.New() }
+func (s *fakeStorer) Commit() error { return errFake.New() }
 
 func (s *storageSuite) TestReference_Storage() {
 	var require = require.New(s.T())
