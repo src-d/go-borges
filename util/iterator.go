@@ -23,27 +23,33 @@ func NewLocationRepositoryIterator(locs []borges.Location, mode borges.Mode) *Lo
 // Next returns the next repository from the iterator. If the iterator has
 // reached the end it will return io.EOF as an error.
 func (iter *LocationRepositoryIterator) Next() (borges.Repository, error) {
-	if len(iter.locs) == 0 {
-		return nil, io.EOF
-	}
-
-	if iter.iter == nil {
-		i, err := iter.locs[0].Repositories(iter.mode)
-		if err != nil {
-			iter.locs = iter.locs[1:]
-			return nil, err
+	for {
+		if len(iter.locs) == 0 {
+			return nil, io.EOF
 		}
-		iter.iter = i
-	}
 
-	r, err := iter.iter.Next()
-	if err == io.EOF {
-		iter.locs = iter.locs[1:]
-		iter.iter = nil
-		return iter.Next()
-	}
+		if iter.iter == nil {
+			i, err := iter.locs[0].Repositories(iter.mode)
+			if err != nil {
+				iter.locs = iter.locs[1:]
+				return nil, err
+			}
+			iter.iter = i
+		}
 
-	return r, err
+		r, err := iter.iter.Next()
+		switch err {
+		case nil:
+			return r, err
+		case io.EOF:
+			iter.locs = iter.locs[1:]
+			iter.iter = nil
+		default:
+			if !borges.ErrLocationNotExists.Is(err) {
+				return nil, err
+			}
+		}
+	}
 }
 
 // ForEach call the function for each object contained on this iter until

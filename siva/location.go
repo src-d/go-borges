@@ -103,9 +103,11 @@ func (l *Location) checkAndUpdate() error {
 		return err
 	}
 
-	err = l.updateCache(cp)
-	if err != nil {
-		return err
+	if cp.Offset() > 0 {
+		err = l.updateCache(cp)
+		if err != nil {
+			return err
+		}
 	}
 
 	l.checkpoint = cp
@@ -162,6 +164,9 @@ func (l *Location) FS(mode borges.Mode) (sivafs.SivaFS, error) {
 func (l *Location) fs(mode borges.Mode, cp *checkpoint) (sivafs.SivaFS, error) {
 	if mode == borges.ReadOnlyMode {
 		offset := cp.Offset()
+		if offset == 0 {
+			return nil, borges.ErrLocationNotExists.New(string(l.id))
+		}
 
 		if l.metadata != nil {
 			version := l.lib.Version()
