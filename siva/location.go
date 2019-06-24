@@ -93,14 +93,15 @@ func (l *Location) checkAndUpdate() error {
 		return err
 	}
 
-	version := l.lib.Version()
-	if l.fSize == stat.Size() && l.fTime == stat.ModTime() && l.version == version {
-		return nil
-	}
-
 	cp, err := newCheckpoint(l.lib.fs, l.path, false)
 	if err != nil {
 		return err
+	}
+
+	version := l.lib.Version()
+	if l.fSize == stat.Size() && l.fTime == stat.ModTime() &&
+		l.version == version && l.checkpoint.Offset() == cp.Offset() {
+		return nil
 	}
 
 	if cp.Offset() > 0 {
