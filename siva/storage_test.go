@@ -278,3 +278,40 @@ func processLine(line string) (*plumbing.Reference, error) {
 		return plumbing.NewReferenceFromStrings(ws[1], ws[0]), nil
 	}
 }
+
+func (s *storageSuite) TestCloseSivaFilesForReadOnlyStorage() {
+	var req = require.New(s.T())
+
+	iter, err := s.lib.Repositories(borges.ReadOnlyMode)
+	req.NoError(err)
+
+	req.NoError(iter.ForEach(func(r borges.Repository) error {
+		s.T().Run(string(r.ID()), func(t *testing.T) {
+			repo, ok := r.(*Repository)
+			req.True(ok)
+
+			sto, ok := repo.s.(*ReadOnlyStorer)
+			req.True(ok)
+
+			testSto := &testReadOnlyStorer{ReadOnlyStorer: sto}
+			repo.s = testSto
+			req.NoError(repo.Close())
+			req.True(testSto.closed)
+		})
+		return nil
+	}))
+}
+
+type testReadOnlyStorer struct {
+	*ReadOnlyStorer
+	closed bool
+}
+
+func (s *testReadOnlyStorer) Close() error {
+	if err := s.ReadOnlyStorer.Close(); err != nil {
+		return err
+	}
+
+	s.closed = true
+	return nil
+}
