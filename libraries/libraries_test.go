@@ -31,7 +31,7 @@ type librariesSuite struct {
 }
 
 func (s *librariesSuite) SetupSuite() {
-	s.libs = setupSivaLibraries(s.T(), siva.LibraryOptions{
+	s.libs = setupSivaLibraries(s.T(), &siva.LibraryOptions{
 		Bucket:        s.bucket,
 		Transactional: s.transactional,
 	})
@@ -222,12 +222,12 @@ func TestLibrariesRepositoriesError(t *testing.T) {
 	err = orig.Close()
 	require.NoError(err)
 
-	sivaLib, err := siva.NewLibrary("siva", fs, siva.LibraryOptions{
+	sivaLib, err := siva.NewLibrary("siva", fs, &siva.LibraryOptions{
 		RootedRepo: true,
 	})
 	require.NoError(err)
 
-	lib := New(Options{})
+	lib := New(&Options{})
 	lib.Add(plainLib)
 	lib.Add(sivaLib)
 

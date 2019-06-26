@@ -87,7 +87,7 @@ func setupFS(t *testing.T, dir string, inMem bool, bucket int) (billy.Filesystem
 func setupLibrary(
 	t *testing.T,
 	id string,
-	opts LibraryOptions,
+	opts *LibraryOptions,
 ) *Library {
 	t.Helper()
 	var require = require.New(t)

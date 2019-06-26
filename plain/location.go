@@ -50,9 +50,12 @@ type Location struct {
 
 // NewLocation returns a new Location based on the given ID and Filesystem with
 // the given LocationOptions.
-func NewLocation(id borges.LocationID, fs billy.Filesystem, opts *LocationOptions) (*Location, error) {
-	if opts == nil {
+func NewLocation(id borges.LocationID, fs billy.Filesystem, options *LocationOptions) (*Location, error) {
+	var opts *LocationOptions
+	if options == nil {
 		opts = &LocationOptions{}
+	} else {
+		opts = &(*options)
 	}
 
 	if err := opts.Validate(); err != nil {

@@ -26,7 +26,7 @@ type locationSuite struct {
 }
 
 func (s *locationSuite) SetupTest() {
-	s.lib = setupLibrary(s.T(), "test", LibraryOptions{
+	s.lib = setupLibrary(s.T(), "test", &LibraryOptions{
 		Transactional: s.transactional,
 		Bucket:        s.bucket,
 	})

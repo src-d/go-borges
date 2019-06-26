@@ -16,7 +16,7 @@ import (
 func TestLibrary(t *testing.T) {
 	s := new(test.LibrarySuite)
 	s.LibrarySingle = func() borges.Library {
-		return setupLibrary(t, "foo", LibraryOptions{})
+		return setupLibrary(t, "foo", &LibraryOptions{})
 	}
 
 	suite.Run(t, s)
@@ -58,7 +58,7 @@ func TestLibraryRepositoriesError(t *testing.T) {
 	err = orig.Close()
 	require.NoError(err)
 
-	lib, err := NewLibrary("siva", fs, LibraryOptions{
+	lib, err := NewLibrary("siva", fs, &LibraryOptions{
 		RootedRepo: true,
 	})
 	require.NoError(err)

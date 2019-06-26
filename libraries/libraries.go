@@ -29,13 +29,20 @@ type Options struct {
 // The borges.Library that will be added shouldn't contain other libraries inside.
 type Libraries struct {
 	libs map[borges.LibraryID]borges.Library
-	opts Options
+	opts *Options
 }
 
 var _ borges.Library = (*Libraries)(nil)
 
 // New create a new Libraries instance.
-func New(opts Options) *Libraries {
+func New(options *Options) *Libraries {
+	var opts *Options
+	if options == nil {
+		opts = &Options{}
+	} else {
+		opts = &(*options)
+	}
+
 	if opts.RepositoryIterOrder == nil {
 		opts.RepositoryIterOrder = RepositoryDefaultIter
 	}
