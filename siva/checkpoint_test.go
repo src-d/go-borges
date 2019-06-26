@@ -35,7 +35,7 @@ func TestCheckpoint_Broken_Siva_File_No_Checkpoint(t *testing.T) {
 	err = util.WriteFile(fs, "really_broken.siva", brokenData, 0666)
 	require.NoError(err)
 
-	lib, err := NewLibrary("test", fs, LibraryOptions{Transactional: true})
+	lib, err := NewLibrary("test", fs, &LibraryOptions{Transactional: true})
 	require.NoError(err)
 
 	loc, err := lib.Location("really_broken")

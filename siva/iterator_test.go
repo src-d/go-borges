@@ -12,7 +12,7 @@ import (
 func TestRepositoryIterator(t *testing.T) {
 	var require = require.New(t)
 
-	lib := setupLibrary(t, "test", LibraryOptions{})
+	lib := setupLibrary(t, "test", &LibraryOptions{})
 	loc, err := lib.Location("foo-bar")
 	require.NoError(err)
 

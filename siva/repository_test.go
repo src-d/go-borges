@@ -39,7 +39,7 @@ var (
 )
 
 func (s *repoSuite) SetupTest() {
-	s.lib = setupLibrary(s.T(), "test", LibraryOptions{
+	s.lib = setupLibrary(s.T(), "test", &LibraryOptions{
 		Transactional: s.transactional,
 	})
 }
@@ -458,7 +458,7 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 
 	fs, _ := setupOSFS(t, 0)
 
-	lib, err := NewLibrary("test", fs, LibraryOptions{Transactional: true})
+	lib, err := NewLibrary("test", fs, &LibraryOptions{Transactional: true})
 	req.NoError(err)
 
 	loc, err := lib.Location("foo-qux")

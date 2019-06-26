@@ -29,7 +29,7 @@ type Library struct {
 	tmp      billy.Filesystem
 	locReg   *locationRegistry
 	locMu    sync.Mutex
-	options  LibraryOptions
+	options  *LibraryOptions
 	metadata *LibraryMetadata
 }
 
@@ -70,12 +70,19 @@ const (
 func NewLibrary(
 	id string,
 	fs billy.Filesystem,
-	ops LibraryOptions,
+	options *LibraryOptions,
 ) (*Library, error) {
 	metadata, err := loadLibraryMetadata(fs)
 	if err != nil {
 		// TODO: skip metadata if corrupted?
 		return nil, err
+	}
+
+	var ops *LibraryOptions
+	if options == nil {
+		ops = &LibraryOptions{}
+	} else {
+		ops = &(*options)
 	}
 
 	if ops.RegistryCache <= 0 {

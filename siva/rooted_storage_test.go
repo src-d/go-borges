@@ -12,7 +12,7 @@ import (
 )
 
 func TestRootedIterateReferences(t *testing.T) {
-	options := LibraryOptions{
+	options := &LibraryOptions{
 		RootedRepo: true,
 	}
 
@@ -83,7 +83,7 @@ func TestRootedIterateReferences(t *testing.T) {
 func TestRootedSetReference(t *testing.T) {
 	require := require.New(t)
 
-	options := LibraryOptions{
+	options := &LibraryOptions{
 		RootedRepo: true,
 	}
 
@@ -120,7 +120,7 @@ func TestRootedSetReference(t *testing.T) {
 	err = repo.Close()
 	require.NoError(err)
 
-	options = LibraryOptions{
+	options = &LibraryOptions{
 		RootedRepo: false,
 	}
 
@@ -151,7 +151,7 @@ func TestRootedIterateObjects(t *testing.T) {
 func testRootedIterators(t *testing.T, mode borges.Mode) {
 	t.Helper()
 
-	options := LibraryOptions{
+	options := &LibraryOptions{
 		RootedRepo: true,
 	}
 
@@ -422,7 +422,7 @@ func sr(n, t string) *plumbing.Reference {
 func TestRootedEmptyTree(t *testing.T) {
 	require := require.New(t)
 
-	options := LibraryOptions{}
+	options := &LibraryOptions{}
 
 	fs := memfs.New()
 	lib, err := NewLibrary("rooted", fs, options)
@@ -484,7 +484,7 @@ func TestRootedEmptyTree(t *testing.T) {
 	err = repo.Close()
 	require.NoError(err)
 
-	options = LibraryOptions{
+	options = &LibraryOptions{
 		RootedRepo: true,
 	}
 

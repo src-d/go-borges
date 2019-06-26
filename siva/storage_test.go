@@ -41,7 +41,7 @@ var (
 
 func (s *storageSuite) SetupTest() {
 	fs, _ := setupFS(s.T(), testRootedDir, true, 0)
-	lib, err := NewLibrary("not-rooted", fs, LibraryOptions{
+	lib, err := NewLibrary("not-rooted", fs, &LibraryOptions{
 		RootedRepo:    false,
 		Transactional: true,
 	})

@@ -12,7 +12,7 @@ import (
 func TestRepositoryIterFuncs(t *testing.T) {
 	var require = require.New(t)
 
-	libs := setupSivaLibraries(t, siva.LibraryOptions{Bucket: 2})
+	libs := setupSivaLibraries(t, &siva.LibraryOptions{Bucket: 2})
 
 	expected := []borges.RepositoryID{
 		"github.com/rtyley/small-test-repo",
@@ -74,7 +74,7 @@ func toSlice(t *testing.T, iter borges.RepositoryIterator) []borges.RepositoryID
 func TestMergedIterators(t *testing.T) {
 	var require = require.New(t)
 
-	libs := setupSivaLibraries(t, siva.LibraryOptions{Bucket: 2})
+	libs := setupSivaLibraries(t, &siva.LibraryOptions{Bucket: 2})
 
 	libIter, err := libs.Libraries()
 	require.NoError(err)

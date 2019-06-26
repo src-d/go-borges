@@ -150,7 +150,7 @@ version: `
 			err := util.WriteFile(fs, path, []byte(rootedVersions), 0666)
 			require.NoError(err)
 
-			lib, err := NewLibrary("test", fs, LibraryOptions{})
+			lib, err := NewLibrary("test", fs, &LibraryOptions{})
 			require.NoError(err)
 
 			it, err := lib.Repositories(borges.ReadOnlyMode)
@@ -173,7 +173,7 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
 	// library does not have metadata
-	lib, err := NewLibrary("test", fs, LibraryOptions{})
+	lib, err := NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version := lib.Version()
@@ -186,7 +186,7 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	require.True(os.IsNotExist(err), "library metadata file should not exist")
 
 	// set version in library metadata
-	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
@@ -201,7 +201,7 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	require.NoError(err, "library metadata file should exist")
 
 	// modify version in library metadata
-	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
@@ -212,7 +212,7 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	require.NoError(err)
 
 	// check modified version
-	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
@@ -223,7 +223,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 	require := require.New(t)
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
-	lib, err := NewLibrary("test", fs, LibraryOptions{})
+	lib, err := NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
@@ -284,7 +284,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 
 	// Reopen library and check versions
 
-	lib, err = NewLibrary("test", fs, LibraryOptions{})
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	loc, err = lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
@@ -322,7 +322,7 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 	require := require.New(t)
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
-	lib, err := NewLibrary("test", fs, LibraryOptions{
+	lib, err := NewLibrary("test", fs, &LibraryOptions{
 		Transactional: true,
 	})
 	require.NoError(err)

@@ -65,11 +65,11 @@ var (
 	}
 )
 
-func setupSivaLibraries(t *testing.T, opts siva.LibraryOptions) *Libraries {
+func setupSivaLibraries(t *testing.T, opts *siva.LibraryOptions) *Libraries {
 	t.Helper()
 	var require = require.New(t)
 
-	libs := New(Options{})
+	libs := New(&Options{})
 	require.NotNil(libs)
 	require.Equal(borges.LibraryID(""), libs.ID())
 
@@ -85,7 +85,7 @@ func setupSivaLibraries(t *testing.T, opts siva.LibraryOptions) *Libraries {
 	return libs
 }
 
-func setupSivaLibrary(t *testing.T, path string, opts siva.LibraryOptions) *siva.Library {
+func setupSivaLibrary(t *testing.T, path string, opts *siva.LibraryOptions) *siva.Library {
 	t.Helper()
 	var require = require.New(t)
 

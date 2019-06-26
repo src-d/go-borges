@@ -15,7 +15,7 @@ func point(p interface{}) string {
 func TestRegistryNoCache(t *testing.T) {
 	require := require.New(t)
 
-	lib := setupLibrary(t, "test", LibraryOptions{
+	lib := setupLibrary(t, "test", &LibraryOptions{
 		Transactional: true,
 		RegistryCache: 0,
 	})
@@ -59,7 +59,7 @@ func TestRegistryNoCache(t *testing.T) {
 func TestRegistryCache(t *testing.T) {
 	require := require.New(t)
 
-	lib := setupLibrary(t, "test", LibraryOptions{
+	lib := setupLibrary(t, "test", &LibraryOptions{
 		Transactional: true,
 		RegistryCache: 1,
 	})
