@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -153,7 +154,7 @@ version: `
 			lib, err := NewLibrary("test", fs, &LibraryOptions{})
 			require.NoError(err)
 
-			it, err := lib.Repositories(borges.ReadOnlyMode)
+			it, err := lib.Repositories(context.TODO(), borges.ReadOnlyMode)
 			require.NoError(err)
 
 			var repositories []string
@@ -226,14 +227,14 @@ func TestMetadataWriteLocation(t *testing.T) {
 	lib, err := NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+	loc, err := lib.Location(context.TODO(), "cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
 	require.NoError(err)
 
 	l, ok := loc.(*Location)
 	require.True(ok, "location must be siva.Location")
 
 	var repos []string
-	it, err := l.Repositories(borges.ReadOnlyMode)
+	it, err := l.Repositories(context.TODO(), borges.ReadOnlyMode)
 	require.NoError(err)
 
 	err = it.ForEach(func(r borges.Repository) error {
@@ -264,7 +265,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 	require.NoError(err)
 
 	repos = []string{}
-	it, err = l.Repositories(borges.ReadOnlyMode)
+	it, err = l.Repositories(context.TODO(), borges.ReadOnlyMode)
 	require.NoError(err)
 
 	err = it.ForEach(func(r borges.Repository) error {
@@ -287,7 +288,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	loc, err = lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+	loc, err = lib.Location(context.TODO(), "cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
 	require.NoError(err)
 
 	l, ok = loc.(*Location)
@@ -303,7 +304,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 	require.Equal(1, l.LastVersion())
 
 	repos = []string{}
-	it, err = l.Repositories(borges.ReadOnlyMode)
+	it, err = l.Repositories(context.TODO(), borges.ReadOnlyMode)
 	require.NoError(err)
 
 	err = it.ForEach(func(r borges.Repository) error {
@@ -351,10 +352,10 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 
 	// create versions
 	for _, t := range tests {
-		loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+		loc, err := lib.Location(context.TODO(), "cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
 		require.NoError(err)
 
-		repo, err := loc.Get("gitserver.com/a", borges.RWMode)
+		repo, err := loc.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 		require.NoError(err)
 
 		sivaRepo := repo.(*Repository)
@@ -365,14 +366,14 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 		_, err = r.CreateTag(name, plumbing.ZeroHash, nil)
 		require.NoError(err)
 
-		err = repo.Commit()
+		err = repo.Commit(context.TODO())
 		require.NoError(err)
 	}
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("version-%v", test.version), func(t *testing.T) {
 			lib.SetVersion(test.version)
-			loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
+			loc, err := lib.Location(context.TODO(), "cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
 			require.NoError(err)
 
 			sivaLoc := loc.(*Location)
@@ -382,7 +383,7 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 			require.Equal(test.offset, version.Offset)
 			require.Equal(test.size, version.Size)
 
-			repo, err := loc.Get("gitserver.com/a", borges.ReadOnlyMode)
+			repo, err := loc.Get(context.TODO(), "gitserver.com/a", borges.ReadOnlyMode)
 			require.NoError(err)
 
 			r := repo.R()

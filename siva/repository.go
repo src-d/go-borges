@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"context"
 	"io"
 	"sync"
 
@@ -71,9 +72,9 @@ func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
-// LocationID implements borges.Repository interface.
-func (r *Repository) LocationID() borges.LocationID {
-	return r.location.ID()
+// Location implements borges.Repository interface.
+func (r *Repository) Location() borges.Location {
+	return r.location
 }
 
 // Mode implements borges.Repository interface.
@@ -82,7 +83,7 @@ func (r *Repository) Mode() borges.Mode {
 }
 
 // Commit implements borges.Repository interface.
-func (r *Repository) Commit() error {
+func (r *Repository) Commit(_ context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

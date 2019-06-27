@@ -1,6 +1,7 @@
 package plain
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -91,10 +92,10 @@ func TestRepository_Commit_OnNonTransactional(t *testing.T) {
 
 	location := newLocationWithFixtures(require, nil)
 
-	r, err := location.Get("basic.git", borges.RWMode)
+	r, err := location.Get(context.TODO(), "basic.git", borges.RWMode)
 	require.NoError(err)
 
-	err = r.Commit()
+	err = r.Commit(context.TODO())
 	require.True(borges.ErrNonTransactional.Is(err))
 }
 
@@ -108,7 +109,7 @@ func TestRepository_Close(t *testing.T) {
 		TemporalFilesystem: tmp,
 	})
 
-	r, err := location.Get("basic.git", borges.RWMode)
+	r, err := location.Get(context.TODO(), "basic.git", borges.RWMode)
 	require.NoError(err)
 
 	r.R().Storer.SetReference(plumbing.NewHashReference("refs/heads/foo", plumbing.ZeroHash))

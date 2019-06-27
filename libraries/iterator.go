@@ -1,6 +1,7 @@
 package libraries
 
 import (
+	"context"
 	"io"
 
 	"github.com/src-d/go-borges"
@@ -161,7 +162,7 @@ func RepositoryDefaultIter(
 
 	var repositories []borges.RepositoryIterator
 	for _, lib := range l.libs {
-		repos, err := lib.Repositories(mode)
+		repos, err := lib.Repositories(context.TODO(), mode)
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +200,7 @@ func RepoIterJumpLibraries(
 	libs *Libraries,
 	mode borges.Mode,
 ) (borges.RepositoryIterator, error) {
-	libIter, err := libs.Libraries()
+	libIter, err := libs.Libraries(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +214,7 @@ func repoIterJumpLibraries(
 ) (borges.RepositoryIterator, error) {
 	var repoIters []borges.RepositoryIterator
 	err := libIter.ForEach(func(l borges.Library) error {
-		ri, err := l.Repositories(mode)
+		ri, err := l.Repositories(context.TODO(), mode)
 		if err == nil {
 			repoIters = append(repoIters, ri)
 		}
@@ -318,7 +319,7 @@ func RepoIterJumpLocations(
 	libs *Libraries,
 	mode borges.Mode,
 ) (borges.RepositoryIterator, error) {
-	libIter, err := libs.Libraries()
+	libIter, err := libs.Libraries(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +333,7 @@ func repoIterJumpLocations(
 ) (borges.RepositoryIterator, error) {
 	var locsIter []borges.LocationIterator
 	err := libIter.ForEach(func(lib borges.Library) error {
-		locIter, err := lib.Locations()
+		locIter, err := lib.Locations(context.TODO())
 		if err == nil {
 			locsIter = append(locsIter, locIter)
 		}
@@ -420,7 +421,7 @@ func (i *jumpLocsRepoIter) nextRepoIter() error {
 			return err
 		}
 
-		repoIter, err := loc.Repositories(i.mode)
+		repoIter, err := loc.Repositories(context.TODO(), i.mode)
 		if err != nil {
 			return err
 		}

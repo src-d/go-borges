@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -38,9 +39,9 @@ func TestCheckpoint_Broken_Siva_File_No_Checkpoint(t *testing.T) {
 	lib, err := NewLibrary("test", fs, &LibraryOptions{Transactional: true})
 	require.NoError(err)
 
-	loc, err := lib.Location("really_broken")
+	loc, err := lib.Location(context.TODO(), "really_broken")
 	require.NoError(err)
-	_, err = loc.Get("github.com/foo/bar", borges.ReadOnlyMode)
+	_, err = loc.Get(context.TODO(), "github.com/foo/bar", borges.ReadOnlyMode)
 	require.Error(err)
 }
 

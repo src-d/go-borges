@@ -1,6 +1,7 @@
 package plain
 
 import (
+	"context"
 	"io"
 	"os"
 
@@ -70,24 +71,29 @@ func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
+// Library returns the Library this location belongs to.
+func (l *Location) Library() borges.Library {
+	return nil
+}
+
 // GetOrInit get the requested repository based on the given id, or inits a
 // new repository. If the repository is opened this will be done in RWMode.
-func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) {
-	has, err := l.Has(id)
+func (l *Location) GetOrInit(ctx context.Context, id borges.RepositoryID) (borges.Repository, error) {
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	if has {
-		return l.Get(id, borges.RWMode)
+		return l.Get(ctx, id, borges.RWMode)
 	}
 
-	return l.Init(id)
+	return l.Init(ctx, id)
 }
 
 // Init initializes a new Repository at this Location.
-func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
-	has, err := l.Has(id)
+func (l *Location) Init(ctx context.Context, id borges.RepositoryID) (borges.Repository, error) {
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +107,7 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 
 // Has returns true if the given RepositoryID matches any repository at this
 // location.
-func (l *Location) Has(id borges.RepositoryID) (bool, error) {
+func (l *Location) Has(_ context.Context, id borges.RepositoryID) (bool, error) {
 	_, err := l.fs.Stat(l.RepositoryPath(id))
 	if err == nil {
 		return true, nil
@@ -117,8 +123,8 @@ func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 // Get open a repository with the given RepositoryID, this operation doesn't
 // perform any read operation. If a repository with the given RepositoryID
 // already exists ErrRepositoryExists is returned.
-func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
-	has, err := l.Has(id)
+func (l *Location) Get(ctx context.Context, id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +147,7 @@ func (l *Location) RepositoryPath(id borges.RepositoryID) string {
 
 // Repositories returns a RepositoryIterator that iterates through all the
 // repositories contained in this Location.
-func (l *Location) Repositories(m borges.Mode) (borges.RepositoryIterator, error) {
+func (l *Location) Repositories(_ context.Context, m borges.Mode) (borges.RepositoryIterator, error) {
 	return NewLocationIterator(l, m)
 }
 

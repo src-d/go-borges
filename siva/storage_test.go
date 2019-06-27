@@ -2,6 +2,7 @@ package siva
 
 import (
 	"bufio"
+	"context"
 	"strings"
 	"testing"
 
@@ -64,14 +65,14 @@ func (s *storageSuite) TestCleanupTmp() {
 
 	// check tmp files are removed on commit
 
-	r, err := s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err := s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	req.NoError(err)
 
 	entries, err = fs.ReadDir("/")
 	req.NoError(err)
 	req.True(len(entries) != 0)
 
-	req.True(ErrEmptyCommit.Is(r.Commit()))
+	req.True(ErrEmptyCommit.Is(r.Commit(context.TODO())))
 
 	entries, err = fs.ReadDir("/")
 	req.NoError(err)
@@ -79,7 +80,7 @@ func (s *storageSuite) TestCleanupTmp() {
 
 	// check tmp files are removed on close
 
-	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err = s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	req.NoError(err)
 
 	entries, err = fs.ReadDir("/")
@@ -94,7 +95,7 @@ func (s *storageSuite) TestCleanupTmp() {
 
 	// check tmp files are removed on failed commit
 
-	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err = s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	req.NoError(err)
 
 	entries, err = fs.ReadDir("/")
@@ -106,7 +107,7 @@ func (s *storageSuite) TestCleanupTmp() {
 
 	sto.Storer = &fakeStorer{sto.Storer}
 	r.R().Storer = sto
-	req.EqualError(r.Commit(), errFake.New().Error())
+	req.EqualError(r.Commit(context.TODO()), errFake.New().Error())
 
 	entries, err = fs.ReadDir("/")
 	req.NoError(err)
@@ -114,7 +115,7 @@ func (s *storageSuite) TestCleanupTmp() {
 
 	// check tmp files are removed on failed close
 
-	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err = s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	req.NoError(err)
 
 	entries, err = fs.ReadDir("/")
@@ -145,7 +146,7 @@ func (s *fakeStorer) Commit() error { return errFake.New() }
 func (s *storageSuite) TestReference_Storage() {
 	var require = require.New(s.T())
 
-	r, err := s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err := s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	require.NoError(err)
 
 	iter, err := r.R().References()
@@ -197,10 +198,10 @@ func (s *storageSuite) TestReference_Storage() {
 	require.ElementsMatch(expected, readPackedRefs(s.T(), sto))
 
 	if s.lib.options.Transactional {
-		require.NoError(r.Commit())
+		require.NoError(r.Commit(context.TODO()))
 	}
 
-	r, err = s.lib.Get("gitserver.com/a", borges.RWMode)
+	r, err = s.lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
 	require.NoError(err)
 
 	sto, ok = r.R().Storer.(*Storage)
@@ -282,7 +283,7 @@ func processLine(line string) (*plumbing.Reference, error) {
 func (s *storageSuite) TestCloseSivaFilesForReadOnlyStorage() {
 	var req = require.New(s.T())
 
-	iter, err := s.lib.Repositories(borges.ReadOnlyMode)
+	iter, err := s.lib.Repositories(context.TODO(), borges.ReadOnlyMode)
 	req.NoError(err)
 
 	req.NoError(iter.ForEach(func(r borges.Repository) error {
