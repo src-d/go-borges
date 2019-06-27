@@ -1,6 +1,8 @@
 package libraries
 
 import (
+	"context"
+
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
 
@@ -71,14 +73,14 @@ func (l *Libraries) ID() borges.LibraryID {
 }
 
 // Init implements the Library interface.
-func (l *Libraries) Init(borges.RepositoryID) (borges.Repository, error) {
+func (l *Libraries) Init(context.Context, borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Get implements the Library interface.
-func (l *Libraries) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+func (l *Libraries) Get(ctx context.Context, id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
 	for _, lib := range l.libs {
-		r, err := lib.Get(id, mode)
+		r, err := lib.Get(ctx, id, mode)
 		if err != nil {
 			if borges.ErrRepositoryNotExists.Is(err) {
 				continue
@@ -94,14 +96,14 @@ func (l *Libraries) Get(id borges.RepositoryID, mode borges.Mode) (borges.Reposi
 }
 
 // GetOrInit implements the Library interface.
-func (l *Libraries) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
+func (l *Libraries) GetOrInit(context.Context, borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Has implements the Library interface.
-func (l *Libraries) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.LocationID, error) {
+func (l *Libraries) Has(ctx context.Context, id borges.RepositoryID) (bool, borges.LibraryID, borges.LocationID, error) {
 	for _, lib := range l.libs {
-		has, libID, locID, err := lib.Has(id)
+		has, libID, locID, err := lib.Has(ctx, id)
 		if err != nil {
 			return false, "", "", err
 		}
@@ -115,14 +117,14 @@ func (l *Libraries) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.
 }
 
 // Repositories implements the Library interface.
-func (l *Libraries) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
+func (l *Libraries) Repositories(_ context.Context, mode borges.Mode) (borges.RepositoryIterator, error) {
 	return l.opts.RepositoryIterOrder(l, mode)
 }
 
 // Location implements the Library interface.
-func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
+func (l *Libraries) Location(ctx context.Context, id borges.LocationID) (borges.Location, error) {
 	for _, lib := range l.libs {
-		loc, err := lib.Location(id)
+		loc, err := lib.Location(ctx, id)
 		if err != nil {
 			if borges.ErrLocationNotExists.Is(err) {
 				continue
@@ -138,10 +140,10 @@ func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
 }
 
 // Locations implements the Library interface.
-func (l *Libraries) Locations() (borges.LocationIterator, error) {
+func (l *Libraries) Locations(ctx context.Context) (borges.LocationIterator, error) {
 	var locations []borges.LocationIterator
 	for _, lib := range l.libs {
-		locs, err := lib.Locations()
+		locs, err := lib.Locations(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +155,7 @@ func (l *Libraries) Locations() (borges.LocationIterator, error) {
 }
 
 // Library implements the Library interface.
-func (l *Libraries) Library(id borges.LibraryID) (borges.Library, error) {
+func (l *Libraries) Library(_ context.Context, id borges.LibraryID) (borges.Library, error) {
 	lib, ok := l.libs[id]
 	if !ok {
 		return nil, borges.ErrLibraryNotExists.New(id)
@@ -163,7 +165,7 @@ func (l *Libraries) Library(id borges.LibraryID) (borges.Library, error) {
 }
 
 // Libraries implements the Library interface.
-func (l *Libraries) Libraries() (borges.LibraryIterator, error) {
+func (l *Libraries) Libraries(_ context.Context) (borges.LibraryIterator, error) {
 	return l.FilteredLibraries(func(borges.Library) (bool, error) {
 		return true, nil
 	})

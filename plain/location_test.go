@@ -1,6 +1,7 @@
 package plain
 
 import (
+	"context"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -26,11 +27,11 @@ func TestLocation(t *testing.T) {
 	location, err = NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	r, err := location.Init(id)
+	r, err := location.Init(context.TODO(), id)
 	require.NoError(err)
 	require.NotNil(r)
 
-	iter, err := location.Repositories(borges.RWMode)
+	iter, err := location.Repositories(context.TODO(), borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -51,7 +52,7 @@ func TestLocation_Has(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	has, err := location.Has("http://github.com/foo/bar")
+	has, err := location.Has(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.False(has)
 }
@@ -82,11 +83,11 @@ func TestLocation_Init(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	r, err := location.Init("http://github.com/foo/bar")
+	r, err := location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
-	has, err := location.Has("http://github.com/foo/bar")
+	has, err := location.Has(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.True(has)
 }
@@ -97,11 +98,11 @@ func TestLocation_InitExists(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	r, err := location.Init("http://github.com/foo/bar")
+	r, err := location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
-	r, err = location.Init("http://github.com/foo/bar")
+	r, err = location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.True(borges.ErrRepositoryExists.Is(err))
 	require.Nil(r)
 }
@@ -112,14 +113,14 @@ func TestLocation_Get(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	_, err = location.Init("http://github.com/foo/bar")
+	_, err = location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 
-	r, err := location.Get("http://github.com/foo/bar", borges.RWMode)
+	r, err := location.Get(context.TODO(), "http://github.com/foo/bar", borges.RWMode)
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.LocationID("foo"), r.LocationID())
+	require.Equal(borges.LocationID("foo"), r.Location().ID())
 }
 
 func TestLocation_Get_NotFound(t *testing.T) {
@@ -128,7 +129,7 @@ func TestLocation_Get_NotFound(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	r, err := location.Get("http://github.com/foo/qux", borges.RWMode)
+	r, err := location.Get(context.TODO(), "http://github.com/foo/qux", borges.RWMode)
 	require.True(borges.ErrRepositoryNotExists.Is(err))
 	require.Nil(r)
 }
@@ -139,10 +140,10 @@ func TestLocation_Get_ReadOnlyMode(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), nil)
 	require.NoError(err)
 
-	_, err = location.Init("http://github.com/foo/bar")
+	_, err = location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 
-	r, err := location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
+	r, err := location.Get(context.TODO(), "http://github.com/foo/bar", borges.ReadOnlyMode)
 	require.NoError(err)
 	require.NotNil(r)
 
@@ -158,7 +159,7 @@ func TestLocation_Get_Transactional(t *testing.T) {
 	})
 	require.NoError(err)
 
-	r, err := location.Init("http://github.com/foo/bar")
+	r, err := location.Init(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
@@ -166,10 +167,10 @@ func TestLocation_Get_Transactional(t *testing.T) {
 	err = r.R().Storer.SetReference(plumbing.NewHashReference("refs/heads/foo", h))
 	require.NoError(err)
 
-	err = r.Commit()
+	err = r.Commit(context.TODO())
 	require.NoError(err)
 
-	r, err = location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
+	r, err = location.Get(context.TODO(), "http://github.com/foo/bar", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	ref, err := r.R().Storer.Reference("refs/heads/foo")
@@ -183,11 +184,11 @@ func TestLocation_GetOrInit(t *testing.T) {
 	location, err := NewLocation("foo", memfs.New(), &LocationOptions{Bare: true})
 	require.NoError(err)
 
-	r, err := location.GetOrInit("http://github.com/foo/bar")
+	r, err := location.GetOrInit(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
-	r, err = location.GetOrInit("http://github.com/foo/bar")
+	r, err = location.GetOrInit(context.TODO(), "http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 }
@@ -230,7 +231,7 @@ func TestLocationIterator_Next_Fixture(t *testing.T) {
 	location, err = NewLocation("foo", osfs.New(dir), &LocationOptions{Bare: true})
 	require.NoError(err)
 
-	iter, err := location.Repositories(borges.RWMode)
+	iter, err := location.Repositories(context.TODO(), borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -334,7 +335,7 @@ func TestLocationCache(t *testing.T) {
 	}
 
 	loc := newLocationWithFixtures(require, opts)
-	repo, err := loc.Get("basic.git", borges.ReadOnlyMode)
+	repo, err := loc.Get(context.TODO(), "basic.git", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	hash := plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5")

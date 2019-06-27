@@ -1,6 +1,7 @@
 package libraries
 
 import (
+	"context"
 	"testing"
 
 	"github.com/src-d/go-borges"
@@ -76,7 +77,7 @@ func TestMergedIterators(t *testing.T) {
 
 	libs := setupSivaLibraries(t, &siva.LibraryOptions{Bucket: 2})
 
-	libIter, err := libs.Libraries()
+	libIter, err := libs.Libraries(context.TODO())
 	require.NoError(err)
 
 	lib1Iter, err := libs.FilteredLibraries(filterLibID("lib1"))
@@ -98,7 +99,7 @@ func TestMergedIterators(t *testing.T) {
 		}),
 	)
 
-	libIter, err = libs.Libraries()
+	libIter, err = libs.Libraries(context.TODO())
 	require.NoError(err)
 
 	var (
@@ -108,12 +109,12 @@ func TestMergedIterators(t *testing.T) {
 	)
 
 	require.NoError(libIter.ForEach(func(l borges.Library) error {
-		locIter, err := l.Locations()
+		locIter, err := l.Locations(context.TODO())
 		require.NoError(err)
 
 		locsToMerge = append(locsToMerge, locIter)
 
-		locIter, err = l.Locations()
+		locIter, err = l.Locations(context.TODO())
 		require.NoError(err)
 
 		require.NoError(
@@ -123,7 +124,7 @@ func TestMergedIterators(t *testing.T) {
 			}),
 		)
 
-		reposIter, err := l.Repositories(borges.ReadOnlyMode)
+		reposIter, err := l.Repositories(context.TODO(), borges.ReadOnlyMode)
 		require.NoError(err)
 
 		reposToMerge = append(reposToMerge, reposIter)

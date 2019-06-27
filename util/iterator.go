@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"io"
 
 	"github.com/src-d/go-borges"
@@ -29,7 +30,7 @@ func (iter *LocationRepositoryIterator) Next() (borges.Repository, error) {
 		}
 
 		if iter.iter == nil {
-			i, err := iter.locs[0].Repositories(iter.mode)
+			i, err := iter.locs[0].Repositories(context.TODO(), iter.mode)
 			if err != nil {
 				iter.locs = iter.locs[1:]
 				return nil, err

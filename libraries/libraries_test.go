@@ -1,6 +1,7 @@
 package libraries
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -40,10 +41,10 @@ func (s *librariesSuite) SetupSuite() {
 func (s *librariesSuite) TestNotImplemented() {
 	var require = s.Require()
 
-	_, err := s.libs.Init("foo")
+	_, err := s.libs.Init(context.TODO(), "foo")
 	require.True(borges.ErrNotImplemented.Is(err))
 
-	_, err = s.libs.GetOrInit("foo")
+	_, err = s.libs.GetOrInit(context.TODO(), "foo")
 	require.True(borges.ErrNotImplemented.Is(err))
 }
 
@@ -51,19 +52,19 @@ func (s *librariesSuite) TestLibraryAndLocationAndHasAndGet() {
 	var require = s.Require()
 
 	for lib, locations := range testLibs {
-		_, err := s.libs.Library(lib)
+		_, err := s.libs.Library(context.TODO(), lib)
 		require.NoError(err)
 		for loc, repos := range locations {
-			_, err := s.libs.Location(loc)
+			_, err := s.libs.Location(context.TODO(), loc)
 			require.NoError(err)
 			for _, repo := range repos {
-				ok, libID, locID, err := s.libs.Has(repo)
+				ok, libID, locID, err := s.libs.Has(context.TODO(), repo)
 				require.NoError(err)
 				require.True(ok, repo.String())
 				require.Equal(lib, libID)
 				require.Equal(loc, locID)
 
-				_, err = s.libs.Get(repo, borges.ReadOnlyMode)
+				_, err = s.libs.Get(context.TODO(), repo, borges.ReadOnlyMode)
 				require.NoError(err)
 			}
 		}
@@ -82,7 +83,7 @@ func (s *librariesSuite) TestRepositories() {
 		}
 	}
 
-	iter, err := s.libs.Repositories(borges.ReadOnlyMode)
+	iter, err := s.libs.Repositories(context.TODO(), borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -104,7 +105,7 @@ func (s *librariesSuite) TestLocations() {
 		}
 	}
 
-	iter, err := s.libs.Locations()
+	iter, err := s.libs.Locations(context.TODO())
 	require.NoError(err)
 
 	var ids []borges.LocationID
@@ -124,7 +125,7 @@ func (s *librariesSuite) TestLibraries() {
 		expected = append(expected, lib)
 	}
 
-	iter, err := s.libs.Libraries()
+	iter, err := s.libs.Libraries(context.TODO())
 	require.NoError(err)
 
 	var ids []borges.LibraryID
@@ -151,7 +152,7 @@ func (s *librariesSuite) TestFilteredLibraries() {
 	require.EqualError(err, io.EOF.Error())
 
 	filter = func(lib borges.Library) (bool, error) {
-		ok, _, _, err := lib.Has(borges.RepositoryID("github.com/rtyley/small-test-repo"))
+		ok, _, _, err := lib.Has(context.TODO(), borges.RepositoryID("github.com/rtyley/small-test-repo"))
 		return ok, err
 	}
 
@@ -179,7 +180,7 @@ func TestLibrariesRepositoriesError(t *testing.T) {
 	lbaz, _ := plain.NewLocation(idbaz, memfs.New(), nil)
 
 	nbaz := borges.RepositoryID("github.com/source/bar")
-	_, err := lbaz.Init(nbaz)
+	_, err := lbaz.Init(context.TODO(), nbaz)
 	require.NoError(err)
 
 	plainLib := plain.NewLibrary(borges.LibraryID("broken"))
@@ -231,7 +232,7 @@ func TestLibrariesRepositoriesError(t *testing.T) {
 	lib.Add(plainLib)
 	lib.Add(sivaLib)
 
-	it, err := lib.Repositories(borges.ReadOnlyMode)
+	it, err := lib.Repositories(context.TODO(), borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var errors int

@@ -1,6 +1,7 @@
 package oldsiva
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestLibrary(t *testing.T) {
 		Bucket: 2,
 	})
 
-	locIter, err := lib.Locations()
+	locIter, err := lib.Locations(context.TODO())
 	req.NoError(err)
 
 	var count int
@@ -28,14 +29,16 @@ func TestLibrary(t *testing.T) {
 	locIter.Close()
 	req.True(count == 2)
 
-	repoIter, err := lib.Repositories(borges.RWMode)
+	repoIter, err := lib.Repositories(context.TODO(), borges.RWMode)
 	req.NoError(err)
 
 	count = 0
 	req.NoError(repoIter.ForEach(func(r borges.Repository) error {
 		count++
 		req.Equal(borges.ReadOnlyMode, r.Mode())
-		req.True(borges.ErrNonTransactional.Is(r.Commit()))
+		req.True(borges.ErrNonTransactional.Is(
+			r.Commit(context.TODO()),
+		))
 		req.NoError(r.Close())
 		return nil
 	}))
@@ -49,44 +52,60 @@ func TestLibrary(t *testing.T) {
 
 	for _, id := range ids {
 		t.Run("location_"+string(id), func(t *testing.T) {
-			ok, _, locID, err := lib.Has(borges.RepositoryID(id))
+			ok, _, locID, err := lib.Has(
+				context.TODO(),
+				borges.RepositoryID(id),
+			)
 			req.NoError(err)
 			req.True(ok)
 			req.True(locID == id)
 
-			l, err := lib.Location(id)
+			l, err := lib.Location(context.TODO(), id)
 			req.NoError(err)
 
 			loc, ok := l.(*Location)
 			req.True(ok)
 			req.Equal(filepath.Base(loc.path), string(id)+".siva")
 
-			_, err = loc.GetOrInit(borges.RepositoryID(id))
+			_, err = loc.GetOrInit(
+				context.TODO(),
+				borges.RepositoryID(id),
+			)
 			req.True(borges.ErrNotImplemented.Is(err))
 
-			_, err = loc.Init(borges.RepositoryID("foo"))
+			_, err = loc.Init(
+				context.TODO(),
+				borges.RepositoryID("foo"),
+			)
 			req.True(borges.ErrNotImplemented.Is(err))
 
-			ok, err = loc.Has(borges.RepositoryID(id))
+			ok, err = loc.Has(
+				context.TODO(),
+				borges.RepositoryID(id),
+			)
 			req.NoError(err)
 			req.True(ok)
 
-			_, err = loc.Get("foo", borges.ReadOnlyMode)
+			_, err = loc.Get(
+				context.TODO(),
+				"foo", borges.ReadOnlyMode,
+			)
 			req.True(borges.ErrRepositoryNotExists.Is(err))
 
 			r, err := loc.Get(
+				context.TODO(),
 				borges.RepositoryID(id),
 				borges.RWMode,
 			)
 			req.NoError(err)
-			req.Equal(id, r.LocationID())
+			req.Equal(id, r.Location().ID())
 			req.Equal(borges.RepositoryID(id), r.ID())
 			req.NoError(r.Close())
 		})
 	}
 
 	id := borges.RepositoryID("3974996807a9f596cf25ac3a714995c24bb97e2c")
-	r, err := lib.Get(id, borges.ReadOnlyMode)
+	r, err := lib.Get(context.TODO(), id, borges.ReadOnlyMode)
 	req.NoError(err)
 
 	commitIter, err := r.R().CommitObjects()
@@ -102,7 +121,7 @@ func TestLibrary(t *testing.T) {
 	req.NoError(r.Close())
 
 	id = borges.RepositoryID("f2cee90acf3c6644d51a37057845b98ab1580932")
-	r, err = lib.Get(id, borges.ReadOnlyMode)
+	r, err = lib.Get(context.TODO(), id, borges.ReadOnlyMode)
 	req.NoError(err)
 
 	commitIter, err = r.R().CommitObjects()

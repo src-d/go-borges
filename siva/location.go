@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -209,6 +210,11 @@ func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
+// Library implements the borges.Location interface.
+func (l *Location) Library() borges.Library {
+	return l.lib
+}
+
 const (
 	urlSchema       = "git://%s.git"
 	fetchHEADStr    = "+HEAD:refs/remotes/%s/HEAD"
@@ -216,10 +222,10 @@ const (
 )
 
 // Init implements the borges.Location interface.
-func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
+func (l *Location) Init(ctx context.Context, id borges.RepositoryID) (borges.Repository, error) {
 	id = toRepoID(id.String())
 
-	has, err := l.Has(id)
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -268,12 +274,12 @@ func (l *Location) Init(id borges.RepositoryID) (borges.Repository, error) {
 }
 
 // Get implements the borges.Location interface.
-func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+func (l *Location) Get(ctx context.Context, id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
 	if id == "" {
 		return l.repository(id, mode)
 	}
 
-	has, err := l.Has(id)
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +292,8 @@ func (l *Location) Get(id borges.RepositoryID, mode borges.Mode) (borges.Reposit
 }
 
 // GetOrInit implements the borges.Location interface.
-func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) {
-	has, err := l.Has(id)
+func (l *Location) GetOrInit(ctx context.Context, id borges.RepositoryID) (borges.Repository, error) {
+	has, err := l.Has(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -296,11 +302,11 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 		return l.repository(id, borges.RWMode)
 	}
 
-	return l.Init(id)
+	return l.Init(ctx, id)
 }
 
 // Has implements the borges.Location interface.
-func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
+func (l *Location) Has(_ context.Context, repoID borges.RepositoryID) (bool, error) {
 	if l.lib.options.Transactional {
 		l.m.RLock()
 		offsetZero := l.checkpoint.Offset() == 0
@@ -343,7 +349,7 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 }
 
 // Repositories implements the borges.Location interface.
-func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
+func (l *Location) Repositories(_ context.Context, mode borges.Mode) (borges.RepositoryIterator, error) {
 	var remotes []*config.RemoteConfig
 
 	// Return false when the siva file does not exist. If repository is
