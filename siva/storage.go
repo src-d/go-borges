@@ -55,7 +55,7 @@ func NewReadOnlyStorer(sto storage.Storer, sync sivafs.SivaSync) (*ReadOnlyStore
 		return nil, err
 	}
 
-	refSto, err := newRefStorage(refIter)
+	refSto, err := NewRefStorage(refIter)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func NewStorage(
 		return nil, err
 	}
 
-	refSto, err := newRefStorage(refIter)
+	refSto, err := NewRefStorage(refIter)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +374,9 @@ func getSivaFS(
 	return sivafs.NewFilesystem(base, path, sivaTmpFS)
 }
 
-func newRefStorage(iter storer.ReferenceIter) (memory.ReferenceStorage, error) {
+// NewRefStorage creates a new memory.ReferenceStorage with references from
+// a reference iterator.
+func NewRefStorage(iter storer.ReferenceIter) (memory.ReferenceStorage, error) {
 	rs := map[plumbing.ReferenceName]*plumbing.Reference{}
 	err := iter.ForEach(func(r *plumbing.Reference) error {
 		rs[r.Name()] = r

@@ -6,7 +6,6 @@ import (
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
@@ -28,19 +27,27 @@ var _ borges.Repository = (*Repository)(nil)
 
 func newRepository(
 	location *Location,
-	repoFS billy.Filesystem,
-	repoCache cache.Object,
 ) (*Repository, error) {
+	fs, err := location.fs()
+	if err != nil {
+		return nil, err
+	}
+
 	sto := filesystem.NewStorageWithOptions(
-		repoFS,
-		repoCache,
+		fs,
+		location.cache(),
 		filesystem.Options{
 			ExclusiveAccess: true,
 			KeepDescriptors: true,
 		},
 	)
 
-	roSto, err := siva.NewReadOnlyStorer(sto, repoFS.(sivafs.SivaSync))
+	roSto, err := siva.NewReadOnlyStorerInitialized(
+		sto,
+		fs.(sivafs.SivaSync),
+		location.refs,
+		location.config,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +62,7 @@ func newRepository(
 		loc:  location,
 		repo: repo,
 		sto:  roSto,
-		fs:   repoFS,
+		fs:   fs,
 	}, nil
 }
 

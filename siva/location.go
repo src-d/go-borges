@@ -133,7 +133,7 @@ func (l *Location) updateCache(cp *checkpoint) error {
 		return err
 	}
 
-	refSto, err := newRefStorage(refIter)
+	refSto, err := NewRefStorage(refIter)
 	if err != nil {
 		return err
 	}
