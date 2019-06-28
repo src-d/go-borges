@@ -229,17 +229,3 @@ func toLocID(file string) borges.LocationID {
 	id := strings.TrimSuffix(file, ".siva")
 	return borges.LocationID(id)
 }
-
-// Library implements the borges.Library interface.
-func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
-	if id == l.id {
-		return l, nil
-	}
-
-	return nil, borges.ErrLibraryNotExists.New(id)
-}
-
-// Libraries implements the borges.Library interface.
-func (l *Library) Libraries() (borges.LibraryIterator, error) {
-	return util.NewLibraryIterator([]borges.Library{l}), nil
-}

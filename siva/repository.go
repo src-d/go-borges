@@ -71,9 +71,9 @@ func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
-// LocationID implements borges.Repository interface.
-func (r *Repository) LocationID() borges.LocationID {
-	return r.location.ID()
+// Location implements borges.Repository interface.
+func (r *Repository) Location() borges.Location {
+	return r.location
 }
 
 // Mode implements borges.Repository interface.

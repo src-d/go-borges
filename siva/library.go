@@ -282,21 +282,6 @@ func (l *Library) locations() ([]borges.Location, error) {
 	return locs, nil
 }
 
-// Library implements borges.Library interface.
-func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
-	if id == l.id {
-		return l, nil
-	}
-
-	return nil, borges.ErrLibraryNotExists.New(id)
-}
-
-// Libraries implements borges.Library interface.
-func (l *Library) Libraries() (borges.LibraryIterator, error) {
-	libs := []borges.Library{l}
-	return util.NewLibraryIterator(libs), nil
-}
-
 // Version returns version stored in metadata or -1 if not defined.
 func (l *Library) Version() int {
 	return l.metadata.Version()

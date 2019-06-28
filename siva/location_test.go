@@ -138,7 +138,7 @@ func (s *locationSuite) TestAddLocation() {
 
 	r, err := l.Init(repoID)
 	require.NoError(err)
-	require.Equal(l.ID(), r.LocationID())
+	require.Equal(l.ID(), r.Location().ID())
 
 	_, err = r.R().CreateTag("test", plumbing.ZeroHash, nil)
 	require.NoError(err)

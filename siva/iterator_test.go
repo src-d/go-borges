@@ -41,7 +41,7 @@ func TestRepositoryIterator(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 	require.Equal(toRepoID(name), r.ID())
-	require.Equal(loc.ID(), r.LocationID())
+	require.Equal(loc.ID(), r.Location().ID())
 	require.Equal(borges.ReadOnlyMode, r.Mode())
 
 	_, err = i.Next()

@@ -209,6 +209,11 @@ func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
+// Library implements the borges.Location interface.
+func (l *Location) Library() borges.Library {
+	return l.lib
+}
+
 const (
 	urlSchema       = "git://%s.git"
 	fetchHEADStr    = "+HEAD:refs/remotes/%s/HEAD"

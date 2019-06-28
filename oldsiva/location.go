@@ -39,17 +39,22 @@ func newLocation(
 	return loc, nil
 }
 
-// ID implementes the borges.Location interface.
+// ID implements the borges.Location interface.
 func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
-// Init implementes the borges.Location interface.
+// Library implements the borges.Location interface.
+func (l *Location) Library() borges.Library {
+	return l.lib
+}
+
+// Init implements the borges.Location interface.
 func (l *Location) Init(_ borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
-// Get implementes the borges.Location interface. It only retrieves repositories
+// Get implements the borges.Location interface. It only retrieves repositories
 // in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Location) Get(
 	id borges.RepositoryID, _ borges.Mode,
@@ -75,20 +80,20 @@ func (l *Location) Get(
 		repoCache = cache.NewObjectLRUDefault()
 	}
 
-	return newRepository(id, repoFS, repoCache)
+	return newRepository(l, repoFS, repoCache)
 }
 
-// GetOrInit implementes the borges.Location interface.
+// GetOrInit implements the borges.Location interface.
 func (l *Location) GetOrInit(_ borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
-// Has implementes the borges.Location interface.
+// Has implements the borges.Location interface.
 func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 	return string(id) == string(l.id), nil
 }
 
-// Repositories implementes the borges.Location interface. It only retrieves
+// Repositories implements the borges.Location interface. It only retrieves
 // repositories in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Location) Repositories(
 	_ borges.Mode,

@@ -79,7 +79,7 @@ func TestLibrary(t *testing.T) {
 				borges.RWMode,
 			)
 			req.NoError(err)
-			req.Equal(id, r.LocationID())
+			req.Equal(id, r.Location().ID())
 			req.Equal(borges.RepositoryID(id), r.ID())
 			req.NoError(r.Close())
 		})

@@ -145,9 +145,9 @@ func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
-// LocationID returns the LocationID from the Location where it was retrieved.
-func (r *Repository) LocationID() borges.LocationID {
-	return r.l.ID()
+// Location implements the borges.Repository interface.
+func (r *Repository) Location() borges.Location {
+	return r.l
 }
 
 // Mode returns the Mode how it was opened.
