@@ -1,8 +1,6 @@
 package plain
 
 import (
-	"context"
-
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
 
@@ -147,9 +145,9 @@ func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
-// Location returns the Location it was retrieved from.
-func (r *Repository) Location() borges.Location {
-	return r.l
+// LocationID returns the LocationID from the Location where it was retrieved.
+func (r *Repository) LocationID() borges.LocationID {
+	return r.l.ID()
 }
 
 // Mode returns the Mode how it was opened.
@@ -174,7 +172,7 @@ func (r *Repository) cleanupTemporal() error {
 // Commit persists all the write operations done since was open, if the
 // repository wasn't opened in a Location with Transactions enable returns
 // ErrNonTransactional.
-func (r *Repository) Commit(_ context.Context) (err error) {
+func (r *Repository) Commit() (err error) {
 	if !r.l.opts.Transactional {
 		return borges.ErrNonTransactional.New()
 	}

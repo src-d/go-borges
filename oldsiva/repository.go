@@ -1,8 +1,6 @@
 package oldsiva
 
 import (
-	"context"
-
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/siva"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
@@ -20,7 +18,6 @@ import (
 // transactionality.
 type Repository struct {
 	id   borges.RepositoryID
-	loc  *Location
 	repo *git.Repository
 	sto  *siva.ReadOnlyStorer
 	fs   billy.Filesystem
@@ -29,7 +26,7 @@ type Repository struct {
 var _ borges.Repository = (*Repository)(nil)
 
 func newRepository(
-	loc *Location,
+	id borges.RepositoryID,
 	repoFS billy.Filesystem,
 	repoCache cache.Object,
 ) (*Repository, error) {
@@ -53,7 +50,7 @@ func newRepository(
 	}
 
 	return &Repository{
-		loc:  loc,
+		id:   id,
 		repo: repo,
 		sto:  roSto,
 		fs:   repoFS,
@@ -62,12 +59,12 @@ func newRepository(
 
 // ID implements the borges.Repository interface.
 func (r *Repository) ID() borges.RepositoryID {
-	return borges.RepositoryID(r.loc.ID())
+	return r.id
 }
 
-// Location implements the borges.Repository interface.
-func (r *Repository) Location() borges.Location {
-	return r.loc
+// LocationID implements the borges.Repository interface.
+func (r *Repository) LocationID() borges.LocationID {
+	return borges.LocationID(r.id)
 }
 
 // Mode implements the borges.Repository interface. It always
@@ -78,7 +75,7 @@ func (r *Repository) Mode() borges.Mode {
 
 // Commit implements the borges.Repository interface. It always returns an
 // borges.ErrNonTransactional error.
-func (r *Repository) Commit(_ context.Context) error {
+func (r *Repository) Commit() error {
 	return borges.ErrNonTransactional.New()
 }
 

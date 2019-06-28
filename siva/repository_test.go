@@ -1,7 +1,6 @@
 package siva
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -51,7 +50,7 @@ func (s *repoSuite) TestID() {
 	var require = s.Require()
 
 	expected := []borges.RepositoryID{"github.com/foo/qux", "github.com/foo/bar"}
-	i, err := s.lib.Repositories(context.TODO(), borges.ReadOnlyMode)
+	i, err := s.lib.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var reposID []borges.RepositoryID
@@ -74,7 +73,7 @@ func (s *repoSuite) TestLocationID() {
 		"github.com/foo/bar": "foo-bar",
 	}
 
-	i, err := s.lib.Repositories(context.TODO(), borges.ReadOnlyMode)
+	i, err := s.lib.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	require.NoError(i.ForEach(func(repo borges.Repository) error {
@@ -83,7 +82,7 @@ func (s *repoSuite) TestLocationID() {
 
 		locID, ok := expected[r.ID()]
 		require.True(ok)
-		require.Equal(locID, r.Location().ID())
+		require.Equal(locID, r.LocationID())
 
 		return nil
 	}))
@@ -92,25 +91,25 @@ func (s *repoSuite) TestLocationID() {
 func (s *repoSuite) TestMode() {
 	var require = s.Require()
 
-	loc, err := s.lib.Location(context.TODO(), "foo-qux")
+	loc, err := s.lib.Location("foo-qux")
 	require.NoError(err)
 
 	// ReadOnlyMode on a single repository
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	r, err := loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	require.Equal(borges.ReadOnlyMode, r.Mode())
 	require.NoError(r.Close())
 
 	// RWMode on a singlie repository
-	r, err = loc.Get(context.TODO(), "github.com/foo/qux", borges.RWMode)
+	r, err = loc.Get("github.com/foo/qux", borges.RWMode)
 	require.NoError(err)
 
 	require.Equal(borges.RWMode, r.Mode())
 	require.NoError(r.Close())
 
 	// ReadOnlyMode on all repositories
-	i, err := s.lib.Repositories(context.TODO(), borges.ReadOnlyMode)
+	i, err := s.lib.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	require.NoError(i.ForEach(func(repo borges.Repository) error {
@@ -123,7 +122,7 @@ func (s *repoSuite) TestMode() {
 	}))
 
 	// RWMode on all repositories
-	i, err = s.lib.Repositories(context.TODO(), borges.RWMode)
+	i, err = s.lib.Repositories(borges.RWMode)
 	require.NoError(err)
 
 	require.NoError(i.ForEach(func(repo borges.Repository) error {
@@ -138,7 +137,7 @@ func (s *repoSuite) TestMode() {
 func (s *repoSuite) TestR() {
 	var require = s.Require()
 
-	i, err := s.lib.Repositories(context.TODO(), borges.RWMode)
+	i, err := s.lib.Repositories(borges.RWMode)
 	require.NoError(err)
 
 	require.NoError(i.ForEach(func(repo borges.Repository) error {
@@ -161,10 +160,10 @@ func (s *repoSuite) TestR() {
 func (s *repoSuite) TestCommit_ReadOnly() {
 	var require = s.Require()
 
-	loc, err := s.lib.Location(context.TODO(), "foo-qux")
+	loc, err := s.lib.Location("foo-qux")
 	require.NoError(err)
 
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	r, err := loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	head, err := r.R().Head()
@@ -173,7 +172,7 @@ func (s *repoSuite) TestCommit_ReadOnly() {
 	_, err = r.R().CreateTag("new-tag", head.Hash(), nil)
 	require.True(util.ErrReadOnlyStorer.Is(err))
 
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	if s.transactional {
 		require.NoError(err)
 	} else {
@@ -184,10 +183,10 @@ func (s *repoSuite) TestCommit_ReadOnly() {
 func (s *repoSuite) TestCommit_RW() {
 	var require = s.Require()
 
-	loc, err := s.lib.Location(context.TODO(), "foo-qux")
+	loc, err := s.lib.Location("foo-qux")
 	require.NoError(err)
 
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.RWMode)
+	r, err := loc.Get("github.com/foo/qux", borges.RWMode)
 	require.NoError(err)
 
 	head := createTagOnHead(s.T(), r, "new-tag")
@@ -206,20 +205,20 @@ func (s *repoSuite) TestCommit_RW() {
 	if s.transactional {
 		// newly repositories opened before commit
 		//  should see the previous state
-		checker, err := loc.Get(context.TODO(), "github.com/foo/qux",
+		checker, err := loc.Get("github.com/foo/qux",
 			borges.ReadOnlyMode)
 		require.NoError(err)
 
 		_, err = checker.R().Tag("new-tag")
 		require.EqualError(err, git.ErrTagNotFound.Error())
 
-		require.NoError(r.Commit(context.TODO()))
-		require.True(ErrRepoAlreadyClosed.Is(r.Commit(context.TODO())))
+		require.NoError(r.Commit())
+		require.True(ErrRepoAlreadyClosed.Is(r.Commit()))
 	} else {
 		require.NoError(r.Close())
 	}
 
-	checker, err = loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	checker, err = loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	ref, err := checker.R().Tag("new-tag")
@@ -240,10 +239,10 @@ func (s *repoSuite) TestCommit_RW() {
 func (s *repoSuite) TestClose_ReadOnly() {
 	var require = s.Require()
 
-	loc, err := s.lib.Location(context.TODO(), "foo-qux")
+	loc, err := s.lib.Location("foo-qux")
 	require.NoError(err)
 
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	r, err := loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	require.NoError(r.Close())
@@ -253,17 +252,17 @@ func (s *repoSuite) TestClose_ReadOnly() {
 func (s *repoSuite) TestClose_RW() {
 	var require = s.Require()
 
-	loc, err := s.lib.Location(context.TODO(), "foo-qux")
+	loc, err := s.lib.Location("foo-qux")
 	require.NoError(err)
 
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.RWMode)
+	r, err := loc.Get("github.com/foo/qux", borges.RWMode)
 	require.NoError(err)
 
 	head := createTagOnHead(s.T(), r, "new-tag")
 
 	require.NoError(r.Close())
 
-	r, err = loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	r, err = loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	ref, err := r.R().Tag("new-tag")
@@ -281,7 +280,7 @@ func (s *repoSuite) TestFilesystem() {
 	loc, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	r, err := loc.Init(context.TODO(), "http://github.com/foo/bar")
+	r, err := loc.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
@@ -327,7 +326,7 @@ func (s *repoSuite) TestPackfileWriter() {
 	loc, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	r, err := loc.Init(context.TODO(), "http://github.com/foo/bar")
+	r, err := loc.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
@@ -369,14 +368,14 @@ func (s *repoSuite) TestTransaction_Timeout() {
 	loc, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	_, err = loc.Get(context.TODO(), "http://github.com/foo/bar", borges.ReadOnlyMode)
+	_, err = loc.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
 	require.True(borges.ErrRepositoryNotExists.Is(err))
 
-	r, err := loc.Init(context.TODO(), "http://github.com/foo/bar")
+	r, err := loc.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
-	_, err = loc.Init(context.TODO(), "http://github.com/foo/baz")
+	_, err = loc.Init("http://github.com/foo/baz")
 	require.Error(err)
 	require.True(ErrTransactionTimeout.Is(err))
 }
@@ -390,10 +389,10 @@ func (s *repoSuite) TestTransaction_FailedCommit() {
 	loc, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	r, err := loc.Init(context.TODO(), "http://github.com/foo/bar")
+	r, err := loc.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	require.NoError(err)
 
 	ls, ok := loc.(*Location)
@@ -411,7 +410,7 @@ func (s *repoSuite) TestTransaction_FailedCommit() {
 	err = sto.cleanup()
 	require.NoError(err)
 
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	require.Error(err)
 
 	stat, err = s.lib.fs.Stat(ls.path)
@@ -428,7 +427,7 @@ func (s *repoSuite) TestTransaction_FailedCommitEmpty() {
 	loc, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	r, err := loc.Init(context.TODO(), "http://github.com/foo/bar")
+	r, err := loc.Init("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
 
@@ -440,7 +439,7 @@ func (s *repoSuite) TestTransaction_FailedCommitEmpty() {
 	err = sto.cleanup()
 	require.NoError(err)
 
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	require.True(ErrEmptyCommit.Is(err))
 
 	ls, ok := loc.(*Location)
@@ -462,7 +461,7 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 	lib, err := NewLibrary("test", fs, &LibraryOptions{Transactional: true})
 	req.NoError(err)
 
-	loc, err := lib.Location(context.TODO(), "foo-qux")
+	loc, err := lib.Location("foo-qux")
 	req.NoError(err)
 
 	const (
@@ -490,7 +489,7 @@ func TestTransactional_Concurrent_RW_Operations(t *testing.T) {
 		req.NoError(err)
 	}
 
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.ReadOnlyMode)
+	r, err := loc.Get("github.com/foo/qux", borges.ReadOnlyMode)
 	req.NoError(err)
 
 	head, err := r.R().Head()
@@ -511,7 +510,7 @@ func concurrentCreateTag(
 	tag string,
 	id int,
 ) error {
-	r, err := loc.Get(context.TODO(), "github.com/foo/qux", borges.RWMode)
+	r, err := loc.Get("github.com/foo/qux", borges.RWMode)
 	if err != nil {
 		return err
 	}
@@ -527,5 +526,5 @@ func concurrentCreateTag(
 		return err
 	}
 
-	return r.Commit(context.TODO())
+	return r.Commit()
 }

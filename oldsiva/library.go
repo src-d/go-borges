@@ -1,7 +1,6 @@
 package oldsiva
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -82,47 +81,39 @@ func (l *Library) ID() borges.LibraryID {
 }
 
 // Init implements the borges.Library interface.
-func (l *Library) Init(
-	_ context.Context,
-	id borges.RepositoryID,
-) (borges.Repository, error) {
+func (l *Library) Init(id borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Get implements the borges.Library interface. It only retrieves repositories
 // in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Library) Get(
-	ctx context.Context,
 	id borges.RepositoryID,
 	_ borges.Mode,
 ) (borges.Repository, error) {
-	ok, _, locID, _ := l.Has(ctx, id)
+	ok, _, locID, _ := l.Has(id)
 	if !ok {
 		return nil, borges.ErrRepositoryNotExists.New(id)
 	}
 
-	loc, err := l.Location(ctx, locID)
+	loc, err := l.Location(locID)
 	if err != nil {
 		return nil, err
 	}
 
-	return loc.Get(ctx, id, borges.ReadOnlyMode)
+	return loc.Get(id, borges.ReadOnlyMode)
 }
 
 // GetOrInit implements the borges.Library interface.
-func (l *Library) GetOrInit(
-	_ context.Context,
-	_ borges.RepositoryID,
-) (borges.Repository, error) {
+func (l *Library) GetOrInit(_ borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Has implements the borges.Library interface.
 func (l *Library) Has(
-	ctx context.Context,
 	id borges.RepositoryID,
 ) (bool, borges.LibraryID, borges.LocationID, error) {
-	it, err := l.Locations(ctx)
+	it, err := l.Locations()
 	if err != nil {
 		return false, "", "", err
 	}
@@ -138,7 +129,7 @@ func (l *Library) Has(
 			return false, "", "", err
 		}
 
-		has, err := loc.Has(ctx, id)
+		has, err := loc.Has(id)
 		if err != nil {
 			return false, "", "", err
 		}
@@ -152,7 +143,6 @@ func (l *Library) Has(
 // Repositories implements the borges.Library interface. It only retrieves
 // repositories in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Library) Repositories(
-	_ context.Context,
 	_ borges.Mode,
 ) (borges.RepositoryIterator, error) {
 	locs, err := l.locations()
@@ -167,10 +157,7 @@ func (l *Library) Repositories(
 }
 
 // Location implements the borges.Library interface.
-func (l *Library) Location(
-	_ context.Context,
-	id borges.LocationID,
-) (borges.Location, error) {
+func (l *Library) Location(id borges.LocationID) (borges.Location, error) {
 	return l.location(id)
 }
 
@@ -207,9 +194,7 @@ func buildSivaPath(id borges.LocationID, bucket int) string {
 }
 
 // Locations implements the borges.Library interface.
-func (l *Library) Locations(
-	_ context.Context,
-) (borges.LocationIterator, error) {
+func (l *Library) Locations() (borges.LocationIterator, error) {
 	locs, err := l.locations()
 	if err != nil {
 		return nil, err
@@ -229,7 +214,7 @@ func (l *Library) locations() ([]borges.Location, error) {
 
 	for _, s := range sivas {
 		siva := filepath.Base(s)
-		loc, err := l.Location(context.TODO(), toLocID(siva))
+		loc, err := l.Location(toLocID(siva))
 		if err != nil {
 			continue
 		}
@@ -246,10 +231,7 @@ func toLocID(file string) borges.LocationID {
 }
 
 // Library implements the borges.Library interface.
-func (l *Library) Library(
-	_ context.Context,
-	id borges.LibraryID,
-) (borges.Library, error) {
+func (l *Library) Library(id borges.LibraryID) (borges.Library, error) {
 	if id == l.id {
 		return l, nil
 	}
@@ -258,6 +240,6 @@ func (l *Library) Library(
 }
 
 // Libraries implements the borges.Library interface.
-func (l *Library) Libraries(_ context.Context) (borges.LibraryIterator, error) {
+func (l *Library) Libraries() (borges.LibraryIterator, error) {
 	return util.NewLibraryIterator([]borges.Library{l}), nil
 }

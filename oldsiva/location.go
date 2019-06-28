@@ -1,7 +1,6 @@
 package oldsiva
 
 import (
-	"context"
 	"io"
 
 	"github.com/src-d/go-borges"
@@ -40,27 +39,20 @@ func newLocation(
 	return loc, nil
 }
 
-// ID implements the borges.Location interface.
+// ID implementes the borges.Location interface.
 func (l *Location) ID() borges.LocationID {
 	return l.id
 }
 
-// Library implements the borges.Location interface.
-func (l *Location) Library() borges.Library {
-	return l.lib
-}
-
 // Init implementes the borges.Location interface.
-func (l *Location) Init(context.Context, borges.RepositoryID) (borges.Repository, error) {
+func (l *Location) Init(_ borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Get implementes the borges.Location interface. It only retrieves repositories
 // in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Location) Get(
-	ctx context.Context,
-	id borges.RepositoryID,
-	_ borges.Mode,
+	id borges.RepositoryID, _ borges.Mode,
 ) (borges.Repository, error) {
 	if id != "" && string(id) != string(l.id) {
 		return nil, borges.ErrRepositoryNotExists.New(id)
@@ -83,29 +75,22 @@ func (l *Location) Get(
 		repoCache = cache.NewObjectLRUDefault()
 	}
 
-	return newRepository(l, repoFS, repoCache)
+	return newRepository(id, repoFS, repoCache)
 }
 
 // GetOrInit implementes the borges.Location interface.
-func (l *Location) GetOrInit(
-	context.Context,
-	borges.RepositoryID,
-) (borges.Repository, error) {
+func (l *Location) GetOrInit(_ borges.RepositoryID) (borges.Repository, error) {
 	return nil, borges.ErrNotImplemented.New()
 }
 
 // Has implementes the borges.Location interface.
-func (l *Location) Has(
-	_ context.Context,
-	id borges.RepositoryID,
-) (bool, error) {
+func (l *Location) Has(id borges.RepositoryID) (bool, error) {
 	return string(id) == string(l.id), nil
 }
 
 // Repositories implementes the borges.Location interface. It only retrieves
 // repositories in borges.ReadOnlyMode ignoring the given parameter.
 func (l *Location) Repositories(
-	_ context.Context,
 	_ borges.Mode,
 ) (borges.RepositoryIterator, error) {
 	return &repoIter{loc: l}, nil
@@ -123,7 +108,7 @@ func (i *repoIter) Next() (borges.Repository, error) {
 
 	i.consumed = true
 	id := borges.RepositoryID(i.loc.id)
-	return i.loc.Get(context.TODO(), id, borges.ReadOnlyMode)
+	return i.loc.Get(id, borges.ReadOnlyMode)
 }
 
 func (i *repoIter) ForEach(f func(borges.Repository) error) error {

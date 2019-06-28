@@ -1,7 +1,6 @@
 package siva
 
 import (
-	"context"
 	"io"
 	"testing"
 
@@ -14,10 +13,10 @@ func TestRepositoryIterator(t *testing.T) {
 	var require = require.New(t)
 
 	lib := setupLibrary(t, "test", &LibraryOptions{})
-	loc, err := lib.Location(context.TODO(), "foo-bar")
+	loc, err := lib.Location("foo-bar")
 	require.NoError(err)
 
-	iter, err := loc.Repositories(context.TODO(), borges.ReadOnlyMode)
+	iter, err := loc.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	i, ok := iter.(*repositoryIterator)
@@ -42,13 +41,13 @@ func TestRepositoryIterator(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(r)
 	require.Equal(toRepoID(name), r.ID())
-	require.Equal(loc.ID(), r.Location().ID())
+	require.Equal(loc.ID(), r.LocationID())
 	require.Equal(borges.ReadOnlyMode, r.Mode())
 
 	_, err = i.Next()
 	require.EqualError(err, io.EOF.Error())
 
-	iter, err = loc.Repositories(context.TODO(), borges.ReadOnlyMode)
+	iter, err = loc.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var count int

@@ -1,7 +1,6 @@
 package borges
 
 import (
-	"context"
 	"path"
 	"strings"
 
@@ -71,14 +70,14 @@ const (
 type Repository interface {
 	// ID returns the RepositoryID.
 	ID() RepositoryID
-	// Location returns the Location it was retrieved from.
-	Location() Location
+	// LocationID returns the LocationID from the Location where it was retrieved.
+	LocationID() LocationID
 	// Mode returns the Mode how it was opened.
 	Mode() Mode
 	// Commit persists all the write operations done since was open, if the
 	// repository doesn't provide Transactional capabilities should return
 	// ErrNonTransactional.
-	Commit(context.Context) error
+	Commit() error
 	// Close closes the repository, if the repository was opened in transactional
 	// Mode, will delete any write operation pending to be written.
 	Close() error
@@ -104,29 +103,35 @@ type Library interface {
 	// is dependant on the implementation, if this this not supported should
 	// return ErrNotImplemented. If a repository with the given RepositoryID
 	// already exists ErrRepositoryExists is returned.
-	Init(context.Context, RepositoryID) (Repository, error)
+	Init(RepositoryID) (Repository, error)
 	// Get open a repository with the given RepositoryID, it itereates all the
 	// library locations until this repository is found. If a repository with
 	// the given RepositoryID can't be found the ErrRepositoryNotExists is
 	// returned.
-	Get(context.Context, RepositoryID, Mode) (Repository, error)
+	Get(RepositoryID, Mode) (Repository, error)
 	// GetOrInit open or initilizes a Repository at a Location, if this this not
 	// supported should return ErrNotImplemented. If the repository is opened
 	// this will be done in RWMode.
-	GetOrInit(context.Context, RepositoryID) (Repository, error)
+	GetOrInit(RepositoryID) (Repository, error)
 	// Has returns true, the LibraryID and the LocationID if the given
 	// RepositoryID matches any repository at any location belonging to this
 	// Library.
-	Has(context.Context, RepositoryID) (bool, LibraryID, LocationID, error)
+	Has(RepositoryID) (bool, LibraryID, LocationID, error)
 	// Repositories returns a RepositoryIterator that iterates through all
 	// the repositories contained in all Location contained in this Library.
-	Repositories(context.Context, Mode) (RepositoryIterator, error)
+	Repositories(Mode) (RepositoryIterator, error)
 	// Location returns the Location with the given LocationID, if a location
 	// can't be found ErrLocationNotExists is returned.
-	Location(context.Context, LocationID) (Location, error)
+	Location(LocationID) (Location, error)
 	// Locations returns a LocationIterator that iterates through all locations
 	// contained in this Library.
-	Locations(context.Context) (LocationIterator, error)
+	Locations() (LocationIterator, error)
+	// Library returns the Library with the given LibraryID, if a library can't
+	// be found ErrLibraryNotExists is returned.
+	Library(LibraryID) (Library, error)
+	// Libraries returns a LibraryIterator that iterates through all libraries
+	// contained in this Library.
+	Libraries() (LibraryIterator, error)
 }
 
 // LocationID represents a Location identifier.
@@ -137,23 +142,21 @@ type LocationID string
 type Location interface {
 	// ID returns the LocationID for this Location.
 	ID() LocationID
-	// Location returns the Location it was retrieved from.
-	Library() Library
 	// Init initializes a new Repository at this Location.
-	Init(context.Context, RepositoryID) (Repository, error)
+	Init(RepositoryID) (Repository, error)
 	// Get open a repository with the given RepositoryID, this operation doesn't
 	// perform any read operation. If a repository with the given RepositoryID
 	// already exists ErrRepositoryExists is returned.
-	Get(context.Context, RepositoryID, Mode) (Repository, error)
+	Get(RepositoryID, Mode) (Repository, error)
 	// GetOrInit open or initilizes a Repository at this Location. If a
 	// repository with the given RepositoryID can't be found the
 	// ErrRepositoryNotExists is returned. If the repository is opened this will
 	// be done in RWMode.
-	GetOrInit(context.Context, RepositoryID) (Repository, error)
+	GetOrInit(RepositoryID) (Repository, error)
 	// Has returns true if the given RepositoryID matches any repository at
 	// this location.
-	Has(context.Context, RepositoryID) (bool, error)
+	Has(RepositoryID) (bool, error)
 	// Repositories returns a RepositoryIterator that iterates through all
 	// the repositories contained in this Location.
-	Repositories(context.Context, Mode) (RepositoryIterator, error)
+	Repositories(Mode) (RepositoryIterator, error)
 }
