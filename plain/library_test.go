@@ -1,7 +1,6 @@
 package plain
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -28,11 +27,11 @@ func newLibrary(s suite.Suite, name string) *Library {
 	l.AddLocation(lbar)
 
 	nqux := borges.RepositoryID(fmt.Sprintf("github.com/%s/qux", name))
-	_, err := lqux.Init(context.TODO(), nqux)
+	_, err := lqux.Init(nqux)
 	require.NoError(err)
 
 	nbar := (borges.RepositoryID(fmt.Sprintf("github.com/%s/bar", name)))
-	_, err = lbar.Init(context.TODO(), nbar)
+	_, err = lbar.Init(nbar)
 	require.NoError(err)
 
 	return l
@@ -75,10 +74,10 @@ func TestLibraryRepositoriesError(t *testing.T) {
 	l.AddLocation(lbaz)
 
 	nbaz := borges.RepositoryID("github.com/source/bar")
-	_, err := lbaz.Init(context.TODO(), nbaz)
+	_, err := lbaz.Init(nbaz)
 	require.NoError(err)
 
-	it, err := l.Repositories(context.TODO(), borges.ReadOnlyMode)
+	it, err := l.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var errors int

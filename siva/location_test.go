@@ -1,7 +1,6 @@
 package siva
 
 import (
-	"context"
 	"testing"
 
 	borges "github.com/src-d/go-borges"
@@ -43,10 +42,10 @@ func (s *locationSuite) TestCreate() {
 	location, err = s.lib.AddLocation("foo")
 	require.NoError(err)
 
-	r, err := location.Init(context.TODO(), id)
+	r, err := location.Init(id)
 	require.NoError(err)
 	require.NotNil(r)
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	if s.transactional {
 		require.NoError(err)
 	} else {
@@ -56,7 +55,7 @@ func (s *locationSuite) TestCreate() {
 		require.NoError(err)
 	}
 
-	iter, err := location.Repositories(context.TODO(), borges.RWMode)
+	iter, err := location.Repositories(borges.RWMode)
 	require.NoError(err)
 
 	var ids []borges.RepositoryID
@@ -74,14 +73,14 @@ func (s *locationSuite) TestCreate() {
 func (s *locationSuite) TestHas() {
 	require := require.New(s.T())
 
-	location, err := s.lib.Location(context.TODO(), "foo-bar")
+	location, err := s.lib.Location("foo-bar")
 	require.NoError(err)
 
-	has, err := location.Has(context.TODO(), "github.com/foo/bar")
+	has, err := location.Has("github.com/foo/bar")
 	require.NoError(err)
 	require.True(has)
 
-	has, err = location.Has(context.TODO(), "http://github.com/foo/no")
+	has, err = location.Has("http://github.com/foo/no")
 	require.NoError(err)
 	require.False(has)
 }
@@ -89,20 +88,20 @@ func (s *locationSuite) TestHas() {
 func (s *locationSuite) TestInitExists() {
 	require := require.New(s.T())
 
-	location, err := s.lib.Location(context.TODO(), "foo-bar")
+	location, err := s.lib.Location("foo-bar")
 	require.NoError(err)
 
-	has, err := location.Has(context.TODO(), "http://github.com/foo/bar")
+	has, err := location.Has("http://github.com/foo/bar")
 	require.NoError(err)
 	require.True(has)
 
-	has, err = location.Has(context.TODO(), "http://github.com/foo/no")
+	has, err = location.Has("http://github.com/foo/no")
 	require.NoError(err)
 	require.False(has)
 
-	r, err := location.Init(context.TODO(), "http://github.com/foo/no")
+	r, err := location.Init("http://github.com/foo/no")
 	require.NoError(err)
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	if s.transactional {
 		require.NoError(err)
 	} else {
@@ -112,11 +111,11 @@ func (s *locationSuite) TestInitExists() {
 		require.NoError(err)
 	}
 
-	has, err = location.Has(context.TODO(), "http://github.com/foo/bar")
+	has, err = location.Has("http://github.com/foo/bar")
 	require.NoError(err)
 	require.True(has)
 
-	has, err = location.Has(context.TODO(), "http://github.com/foo/no")
+	has, err = location.Has("http://github.com/foo/no")
 	require.NoError(err)
 	require.True(has)
 }
@@ -130,26 +129,26 @@ func (s *locationSuite) TestAddLocation() {
 	const locationID = "new-location"
 	const repoID = "new-repository"
 
-	_, err = s.lib.Location(context.TODO(), locationID)
+	_, err = s.lib.Location(locationID)
 	require.True(borges.ErrLocationNotExists.Is(err))
 
 	l, err := s.lib.AddLocation(locationID)
 	require.NoError(err)
 	require.NotNil(l)
 
-	r, err := l.Init(context.TODO(), repoID)
+	r, err := l.Init(repoID)
 	require.NoError(err)
-	require.Equal(l.ID(), r.Location().ID())
+	require.Equal(l.ID(), r.LocationID())
 
 	_, err = r.R().CreateTag("test", plumbing.ZeroHash, nil)
 	require.NoError(err)
 	if s.transactional {
-		require.NoError(r.Commit(context.TODO()))
+		require.NoError(r.Commit())
 	} else {
 		require.NoError(r.Close())
 	}
 
-	locs, err := s.lib.Locations(context.TODO())
+	locs, err := s.lib.Locations()
 	require.NoError(err)
 
 	found := false
@@ -161,18 +160,18 @@ func (s *locationSuite) TestAddLocation() {
 	})
 	require.True(found, "created location not found")
 
-	r, err = l.Get(context.TODO(), repoID, borges.RWMode)
+	r, err = l.Get(repoID, borges.RWMode)
 	require.NoError(err)
 	if s.transactional {
-		require.True(ErrEmptyCommit.Is(r.Commit(context.TODO())))
+		require.True(ErrEmptyCommit.Is(r.Commit()))
 	} else {
 		require.NoError(r.Close())
 	}
 
-	r, err = s.lib.Get(context.TODO(), repoID, borges.RWMode)
+	r, err = s.lib.Get(repoID, borges.RWMode)
 	require.NoError(err)
 	if s.transactional {
-		require.True(ErrEmptyCommit.Is(r.Commit(context.TODO())))
+		require.True(ErrEmptyCommit.Is(r.Commit()))
 	} else {
 		require.NoError(r.Close())
 	}
@@ -201,7 +200,7 @@ func (s *locationSuite) TestHasURL() {
 	loc, err := s.lib.AddLocation("location")
 	require.NoError(err)
 
-	repo, err := loc.Init(context.TODO(), repoName)
+	repo, err := loc.Init(repoName)
 	require.NoError(err)
 	r := repo.R()
 
@@ -216,17 +215,17 @@ func (s *locationSuite) TestHasURL() {
 	require.NoError(err)
 
 	if s.transactional {
-		require.NoError(repo.Commit(context.TODO()))
+		require.NoError(repo.Commit())
 	} else {
 		require.NoError(repo.Close())
 	}
 
-	found, _, _, err := s.lib.Has(context.TODO(), "github.com/src-d/invalid")
+	found, _, _, err := s.lib.Has("github.com/src-d/invalid")
 	require.NoError(err)
 	require.False(found)
 
 	for _, id := range repoIDs {
-		found, _, l, err := s.lib.Has(context.TODO(), borges.RepositoryID(id))
+		found, _, l, err := s.lib.Has(borges.RepositoryID(id))
 		require.NoError(err)
 		require.True(found)
 		require.Equal("location", string(l))
@@ -239,13 +238,13 @@ func (s *locationSuite) TestGetOrInit() {
 	location, err := s.lib.AddLocation("test")
 	require.NoError(err)
 
-	_, err = location.Get(context.TODO(), "http://github.com/foo/bar", borges.ReadOnlyMode)
+	_, err = location.Get("http://github.com/foo/bar", borges.ReadOnlyMode)
 	require.True(borges.ErrRepositoryNotExists.Is(err))
 
-	r, err := location.GetOrInit(context.TODO(), "http://github.com/foo/bar")
+	r, err := location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	if s.transactional {
 		require.NoError(err)
 	} else {
@@ -254,10 +253,10 @@ func (s *locationSuite) TestGetOrInit() {
 		require.NoError(err)
 	}
 
-	r, err = location.GetOrInit(context.TODO(), "http://github.com/foo/bar")
+	r, err = location.GetOrInit("http://github.com/foo/bar")
 	require.NoError(err)
 	require.NotNil(r)
-	err = r.Commit(context.TODO())
+	err = r.Commit()
 	if s.transactional {
 		require.True(ErrEmptyCommit.Is(err))
 	} else {
@@ -270,7 +269,7 @@ func (s *locationSuite) TestGetOrInit() {
 func (s *locationSuite) TestFS() {
 	require := s.Require()
 
-	location, err := s.lib.Location(context.TODO(), "foo-bar")
+	location, err := s.lib.Location("foo-bar")
 	require.NoError(err)
 
 	loc, ok := location.(*Location)
@@ -299,9 +298,9 @@ func (s *locationSuite) TestRepositories() {
 	require.NoError(err)
 
 	for _, id := range repoIDs {
-		e, err := loc.Init(context.TODO(), borges.RepositoryID(id))
+		e, err := loc.Init(borges.RepositoryID(id))
 		require.NoError(err)
-		err = e.Commit(context.TODO())
+		err = e.Commit()
 		if s.transactional {
 			require.NoError(err)
 		} else {
@@ -312,7 +311,7 @@ func (s *locationSuite) TestRepositories() {
 		}
 	}
 
-	it, err := loc.Repositories(context.TODO(), borges.ReadOnlyMode)
+	it, err := loc.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var names []string

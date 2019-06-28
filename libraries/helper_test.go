@@ -1,7 +1,6 @@
 package libraries
 
 import (
-	"context"
 	"io"
 	"path/filepath"
 	"testing"
@@ -79,7 +78,7 @@ func setupSivaLibraries(t *testing.T, opts *siva.LibraryOptions) *Libraries {
 		lib := setupSivaLibrary(t, l, opts)
 		require.NoError(libs.Add(lib))
 
-		_, err := libs.Library(context.TODO(), lib.ID())
+		_, err := libs.Library(lib.ID())
 		require.NoError(err)
 	}
 

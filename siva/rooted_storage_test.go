@@ -1,7 +1,6 @@
 package siva
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -61,7 +60,7 @@ func TestRootedIterateReferences(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			id := borges.RepositoryID(test.name)
-			repo, err := lib.Get(context.TODO(), id, borges.ReadOnlyMode)
+			repo, err := lib.Get(id, borges.ReadOnlyMode)
 			require.NoError(t, err)
 			defer repo.Close()
 
@@ -92,7 +91,7 @@ func TestRootedSetReference(t *testing.T) {
 	lib, err := NewLibrary("rooted", fs, options)
 	require.NoError(err)
 
-	repo, err := lib.Get(context.TODO(), "gitserver.com/a", borges.RWMode)
+	repo, err := lib.Get("gitserver.com/a", borges.RWMode)
 	require.NoError(err)
 
 	testRef := hr("refs/heads/test", "4debba8a88e808bdef8364026db890c5cb2900de")
@@ -128,7 +127,7 @@ func TestRootedSetReference(t *testing.T) {
 	lib, err = NewLibrary("rooted", fs, options)
 	require.NoError(err)
 
-	repo, err = lib.Get(context.TODO(), "gitserver.com/a", borges.ReadOnlyMode)
+	repo, err = lib.Get("gitserver.com/a", borges.ReadOnlyMode)
 	require.NoError(err)
 	r = repo.R()
 
@@ -349,7 +348,7 @@ func testRootedIterators(t *testing.T, mode borges.Mode) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			id := borges.RepositoryID(test.name)
-			repo, err := lib.Get(context.TODO(), id, mode)
+			repo, err := lib.Get(id, mode)
 			require.NoError(t, err)
 			defer repo.Close()
 
@@ -432,7 +431,7 @@ func TestRootedEmptyTree(t *testing.T) {
 	loc, err := lib.AddLocation(borges.LocationID("location"))
 	require.NoError(err)
 
-	repo, err := loc.Init(context.TODO(), borges.RepositoryID("repo"))
+	repo, err := loc.Init(borges.RepositoryID("repo"))
 	require.NoError(err)
 
 	author := object.Signature{
@@ -492,10 +491,10 @@ func TestRootedEmptyTree(t *testing.T) {
 	lib, err = NewLibrary("rooted", fs, options)
 	require.NoError(err)
 
-	loc, err = lib.Location(context.TODO(), borges.LocationID("location"))
+	loc, err = lib.Location(borges.LocationID("location"))
 	require.NoError(err)
 
-	repo, err = loc.Get(context.TODO(), "repo", borges.ReadOnlyMode)
+	repo, err = loc.Get("repo", borges.ReadOnlyMode)
 	require.NoError(err)
 
 	it, err := repo.R().BlobObjects()

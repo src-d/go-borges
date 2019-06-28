@@ -1,7 +1,6 @@
 package siva
 
 import (
-	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -64,7 +63,7 @@ func TestLibraryRepositoriesError(t *testing.T) {
 	})
 	require.NoError(err)
 
-	it, err := lib.Repositories(context.TODO(), borges.ReadOnlyMode)
+	it, err := lib.Repositories(borges.ReadOnlyMode)
 	require.NoError(err)
 
 	var errors int
