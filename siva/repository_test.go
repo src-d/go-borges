@@ -82,7 +82,7 @@ func (s *repoSuite) TestLocationID() {
 
 		locID, ok := expected[r.ID()]
 		require.True(ok)
-		require.Equal(locID, r.LocationID())
+		require.Equal(locID, r.Location().ID())
 
 		return nil
 	}))

@@ -18,6 +18,7 @@ import (
 // transactionality.
 type Repository struct {
 	id   borges.RepositoryID
+	loc  *Location
 	repo *git.Repository
 	sto  *siva.ReadOnlyStorer
 	fs   billy.Filesystem
@@ -26,7 +27,7 @@ type Repository struct {
 var _ borges.Repository = (*Repository)(nil)
 
 func newRepository(
-	id borges.RepositoryID,
+	location *Location,
 	repoFS billy.Filesystem,
 	repoCache cache.Object,
 ) (*Repository, error) {
@@ -50,7 +51,8 @@ func newRepository(
 	}
 
 	return &Repository{
-		id:   id,
+		id:   borges.RepositoryID(location.ID()),
+		loc:  location,
 		repo: repo,
 		sto:  roSto,
 		fs:   repoFS,
@@ -62,9 +64,9 @@ func (r *Repository) ID() borges.RepositoryID {
 	return r.id
 }
 
-// LocationID implements the borges.Repository interface.
-func (r *Repository) LocationID() borges.LocationID {
-	return borges.LocationID(r.id)
+// Location implements the borges.Repository interface.
+func (r *Repository) Location() borges.Location {
+	return r.loc
 }
 
 // Mode implements the borges.Repository interface. It always

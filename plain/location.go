@@ -44,6 +44,7 @@ func (o *LocationOptions) Validate() error {
 // billy.Filesystem.
 type Location struct {
 	id   borges.LocationID
+	lib  *Library
 	fs   billy.Filesystem
 	opts *LocationOptions
 }
@@ -68,6 +69,11 @@ func NewLocation(id borges.LocationID, fs billy.Filesystem, options *LocationOpt
 // ID returns the ID for this Location.
 func (l *Location) ID() borges.LocationID {
 	return l.id
+}
+
+// Library implements the borges.Location interface.
+func (l *Location) Library() borges.Library {
+	return l.lib
 }
 
 // GetOrInit get the requested repository based on the given id, or inits a

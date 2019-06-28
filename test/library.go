@@ -85,7 +85,7 @@ func (s *LibrarySuite) TestGet() {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.LocationID("foo-qux"), r.LocationID())
+	require.Equal(borges.LocationID("foo-qux"), r.Location().ID())
 }
 
 func (s *LibraryNestedSuite) TestGetNestedLibrary() {
@@ -96,7 +96,7 @@ func (s *LibraryNestedSuite) TestGetNestedLibrary() {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.LocationID("foo-qux"), r.LocationID())
+	require.Equal(borges.LocationID("foo-qux"), r.Location().ID())
 }
 
 func (s *LibraryNestedSuite) TestGetDeepNestedLibrary() {
@@ -107,7 +107,7 @@ func (s *LibraryNestedSuite) TestGetDeepNestedLibrary() {
 	require.NoError(err)
 	require.NotNil(r)
 
-	require.Equal(borges.LocationID("deep-qux"), r.LocationID())
+	require.Equal(borges.LocationID("deep-qux"), r.Location().ID())
 }
 
 func (s *LibrarySuite) TestGetNotFound() {
@@ -154,48 +154,6 @@ func (s *LibrarySuite) TestLocationNotFound() {
 
 	r, err := l.Location("foo")
 	require.True(borges.ErrLocationNotExists.Is(err))
-	require.Nil(r)
-}
-
-func (s *LibraryNestedSuite) TestLibrary() {
-	require := s.Require()
-	l := s.LibraryNested()
-
-	r, err := l.Library("foo")
-	require.NoError(err)
-	require.NotNil(r)
-
-	r, err = l.Library("nested")
-	require.NoError(err)
-	require.NotNil(r)
-}
-
-func (s *LibraryNestedSuite) TestLibraries() {
-	require := s.Require()
-	l := s.LibraryNested()
-
-	iter, err := l.Libraries()
-	require.NoError(err)
-
-	var ids []borges.LibraryID
-	err = iter.ForEach(func(r borges.Library) error {
-		ids = append(ids, r.ID())
-		return nil
-	})
-
-	require.NoError(err)
-	require.ElementsMatch(ids, []borges.LibraryID{
-		"foo",
-		"nested",
-	})
-}
-
-func (s *LibrarySuite) TestLibraryNotFound() {
-	require := s.Require()
-	l := s.LibrarySingle()
-
-	r, err := l.Library("bar")
-	require.True(borges.ErrLibraryNotExists.Is(err))
 	require.Nil(r)
 }
 

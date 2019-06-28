@@ -28,6 +28,7 @@ func (l *Library) ID() borges.LibraryID {
 
 // AddLocation adds a Location to this Library.
 func (l *Library) AddLocation(loc *Location) {
+	loc.lib = l
 	l.locs[loc.ID()] = loc
 }
 

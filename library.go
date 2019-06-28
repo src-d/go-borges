@@ -70,8 +70,8 @@ const (
 type Repository interface {
 	// ID returns the RepositoryID.
 	ID() RepositoryID
-	// LocationID returns the LocationID from the Location where it was retrieved.
-	LocationID() LocationID
+	// Location returns the the Library the Location belongs to.
+	Location() Location
 	// Mode returns the Mode how it was opened.
 	Mode() Mode
 	// Commit persists all the write operations done since was open, if the
@@ -126,12 +126,6 @@ type Library interface {
 	// Locations returns a LocationIterator that iterates through all locations
 	// contained in this Library.
 	Locations() (LocationIterator, error)
-	// Library returns the Library with the given LibraryID, if a library can't
-	// be found ErrLibraryNotExists is returned.
-	Library(LibraryID) (Library, error)
-	// Libraries returns a LibraryIterator that iterates through all libraries
-	// contained in this Library.
-	Libraries() (LibraryIterator, error)
 }
 
 // LocationID represents a Location identifier.
@@ -142,6 +136,8 @@ type LocationID string
 type Location interface {
 	// ID returns the LocationID for this Location.
 	ID() LocationID
+	// Library returns the the Library the Location belongs to if any.
+	Library() Library
 	// Init initializes a new Repository at this Location.
 	Init(RepositoryID) (Repository, error)
 	// Get open a repository with the given RepositoryID, this operation doesn't
