@@ -1,4 +1,4 @@
-package oldsiva
+package legacysiva
 
 import (
 	"io/ioutil"
