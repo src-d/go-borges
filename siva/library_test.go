@@ -1,10 +1,12 @@
 package siva
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/test"
@@ -12,6 +14,28 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 )
+
+func TestTimeout(t *testing.T) {
+	var req = require.New(t)
+
+	lib := setupLibrary(t, "test", &LibraryOptions{
+		Bucket:  2,
+		Timeout: 1 * time.Nanosecond,
+	})
+
+	var err error
+	lib.locReg, err = newLocationRegistry(0)
+	req.NoError(err)
+
+	_, err = lib.Locations()
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, err = lib.Repositories(borges.ReadOnlyMode)
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, _, _, err = lib.Has("baz")
+	req.EqualError(err, context.DeadlineExceeded.Error())
+}
 
 func TestLibrary(t *testing.T) {
 	s := new(test.LibrarySuite)

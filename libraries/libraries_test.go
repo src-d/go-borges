@@ -182,7 +182,11 @@ func TestLibrariesRepositoriesError(t *testing.T) {
 	_, err := lbaz.Init(nbaz)
 	require.NoError(err)
 
-	plainLib := plain.NewLibrary(borges.LibraryID("broken"))
+	plainLib := plain.NewLibrary(
+		borges.LibraryID("broken"),
+		&plain.LibraryOptions{},
+	)
+
 	plainLib.AddLocation(lqux)
 	plainLib.AddLocation(lbar)
 	plainLib.AddLocation(lbaz)
