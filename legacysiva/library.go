@@ -1,10 +1,12 @@
 package legacysiva
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
@@ -25,6 +27,10 @@ type LibraryOptions struct {
 	// Cache specifies the shared cache used in repositories. If not defined
 	// a new default cache will be created for each repository.
 	Cache cache.Object
+	// Timeout set a timeout for library operations. Some operations could
+	// potentially take long so timing out them will make an error be
+	// returned. A 0 value sets a default value of 20 seconds.
+	Timeout time.Duration
 }
 
 // Library represents a borges.Library implementation based on siva files
@@ -43,6 +49,7 @@ var _ borges.Library = (*Library)(nil)
 
 const (
 	registryCacheSize = 10000
+	timeout           = 20 * time.Second
 )
 
 // NewLibrary builds a new Library.
@@ -65,6 +72,10 @@ func NewLibrary(
 	cache, err := lru.New(opts.RegistryCache)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Timeout == 0 {
+		opts.Timeout = timeout
 	}
 
 	return &Library{
@@ -91,7 +102,11 @@ func (l *Library) Get(
 	id borges.RepositoryID,
 	_ borges.Mode,
 ) (borges.Repository, error) {
-	ok, _, locID, _ := l.Has(id)
+	ok, _, locID, err := l.Has(id)
+	if err != nil {
+		return nil, err
+	}
+
 	if !ok {
 		return nil, borges.ErrRepositoryNotExists.New(id)
 	}
@@ -113,10 +128,15 @@ func (l *Library) GetOrInit(_ borges.RepositoryID) (borges.Repository, error) {
 func (l *Library) Has(
 	id borges.RepositoryID,
 ) (bool, borges.LibraryID, borges.LocationID, error) {
-	it, err := l.Locations()
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
+	locs, err := l.locations(ctx)
 	if err != nil {
 		return false, "", "", err
 	}
+
+	it := util.NewLocationIterator(locs)
 	defer it.Close()
 
 	for {
@@ -145,7 +165,10 @@ func (l *Library) Has(
 func (l *Library) Repositories(
 	_ borges.Mode,
 ) (borges.RepositoryIterator, error) {
-	locs, err := l.locations()
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
+	locs, err := l.locations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +218,10 @@ func buildSivaPath(id borges.LocationID, bucket int) string {
 
 // Locations implements the borges.Library interface.
 func (l *Library) Locations() (borges.LocationIterator, error) {
-	locs, err := l.locations()
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
+	locs, err := l.locations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -203,16 +229,28 @@ func (l *Library) Locations() (borges.LocationIterator, error) {
 	return util.NewLocationIterator(locs), nil
 }
 
-func (l *Library) locations() ([]borges.Location, error) {
+func (l *Library) locations(ctx context.Context) ([]borges.Location, error) {
 	var locs []borges.Location
 
 	pattern := filepath.Join(strings.Repeat("?", l.opts.Bucket), "*.siva")
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	sivas, err := butil.Glob(l.fs, pattern)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, s := range sivas {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		siva := filepath.Base(s)
 		loc, err := l.Location(toLocID(siva))
 		if err != nil {

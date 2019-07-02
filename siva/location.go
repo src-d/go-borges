@@ -1,6 +1,7 @@
 package siva
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -77,7 +78,12 @@ func newLocation(
 		version:    -1,
 	}
 
-	loc.txer = newTransactioner(loc, lib.locReg, lib.options.Timeout)
+	loc.txer = newTransactioner(
+		loc,
+		lib.locReg,
+		lib.options.TransactionTimeout,
+	)
+
 	return loc, nil
 }
 
@@ -306,6 +312,19 @@ func (l *Location) GetOrInit(id borges.RepositoryID) (borges.Repository, error) 
 
 // Has implements the borges.Location interface.
 func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		l.lib.options.Timeout,
+	)
+	defer cancel()
+
+	return l.has(ctx, repoID)
+}
+
+func (l *Location) has(
+	ctx context.Context,
+	repoID borges.RepositoryID,
+) (bool, error) {
 	if l.lib.options.Transactional {
 		l.m.RLock()
 		offsetZero := l.checkpoint.Offset() == 0
@@ -316,6 +335,12 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 		}
 	}
 
+	select {
+	case <-ctx.Done():
+		return false, ctx.Err()
+	default:
+	}
+
 	repo, err := l.repository("", borges.ReadOnlyMode)
 	if err != nil {
 		// the repository is still not initialized
@@ -324,6 +349,7 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 		}
 		return false, err
 	}
+	defer repo.Close()
 
 	config, err := repo.R().Config()
 	if err != nil {
@@ -349,6 +375,19 @@ func (l *Location) Has(repoID borges.RepositoryID) (bool, error) {
 
 // Repositories implements the borges.Location interface.
 func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		l.lib.options.Timeout,
+	)
+	defer cancel()
+
+	return l.repositories(ctx, mode)
+}
+
+func (l *Location) repositories(
+	ctx context.Context,
+	mode borges.Mode,
+) (borges.RepositoryIterator, error) {
 	var remotes []*config.RemoteConfig
 
 	// Return false when the siva file does not exist. If repository is
@@ -364,6 +403,12 @@ func (l *Location) Repositories(mode borges.Mode) (borges.RepositoryIterator, er
 			}, nil
 		}
 		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	repo, err := l.repository("", borges.ReadOnlyMode)

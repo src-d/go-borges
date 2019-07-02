@@ -1,9 +1,11 @@
 package plain
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	borges "github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/test"
@@ -14,15 +16,16 @@ import (
 	"gopkg.in/src-d/go-billy.v4/osfs"
 )
 
-func newLibrary(s suite.Suite, name string) *Library {
-	require := s.Require()
+func newLibrary(t *testing.T, name string, opts *LibraryOptions) *Library {
+	t.Helper()
+	require := require.New(t)
 
 	idqux := borges.LocationID(fmt.Sprintf("%s-qux", name))
 	lqux, _ := NewLocation(idqux, memfs.New(), nil)
 	idbar := borges.LocationID(fmt.Sprintf("%s-bar", name))
 	lbar, _ := NewLocation(idbar, memfs.New(), nil)
 
-	l := NewLibrary(borges.LibraryID(name))
+	l := NewLibrary(borges.LibraryID(name), opts)
 	l.AddLocation(lqux)
 	l.AddLocation(lbar)
 
@@ -40,16 +43,16 @@ func newLibrary(s suite.Suite, name string) *Library {
 func TestLibrary(t *testing.T) {
 	s := new(test.LibraryNestedSuite)
 	s.LibrarySingle = func() borges.Library {
-		return newLibrary(s.Suite, "foo")
+		return newLibrary(t, "foo", &LibraryOptions{})
 	}
 	s.LibraryNested = func() borges.Library {
-		baz := NewLibrary("baz")
+		baz := NewLibrary("baz", &LibraryOptions{})
 
-		foo := newLibrary(s.Suite, "foo")
+		foo := newLibrary(t, "foo", &LibraryOptions{})
 		baz.AddLibrary(foo)
 
-		nested := NewLibrary("nested")
-		deep := newLibrary(s.Suite, "deep")
+		nested := NewLibrary("nested", &LibraryOptions{})
+		deep := newLibrary(t, "deep", &LibraryOptions{})
 		nested.AddLibrary(deep)
 		baz.AddLibrary(nested)
 
@@ -68,7 +71,7 @@ func TestLibraryRepositoriesError(t *testing.T) {
 	idbaz := borges.LocationID("baz")
 	lbaz, _ := NewLocation(idbaz, memfs.New(), nil)
 
-	l := NewLibrary(borges.LibraryID("broken"))
+	l := NewLibrary(borges.LibraryID("broken"), &LibraryOptions{})
 	l.AddLocation(lqux)
 	l.AddLocation(lbar)
 	l.AddLocation(lbaz)
@@ -106,4 +109,21 @@ func TestLibraryRepositoriesError(t *testing.T) {
 	require.Equal(3, count)
 	require.Equal(2, errors)
 	require.Equal(1, repos)
+}
+
+func TestTimeout(t *testing.T) {
+	var req = require.New(t)
+
+	lib := newLibrary(t, "test", &LibraryOptions{
+		Timeout: 1 * time.Nanosecond,
+	})
+
+	_, err := lib.Locations()
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, err = lib.Repositories(borges.ReadOnlyMode)
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, _, _, err = lib.Has("baz")
+	req.EqualError(err, context.DeadlineExceeded.Error())
 }

@@ -1,6 +1,8 @@
 package libraries
 
 import (
+	"time"
+
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/util"
 
@@ -16,12 +18,16 @@ var (
 // FilterLibraryFunc stands for a borges.Library filter function.
 type FilterLibraryFunc func(borges.Library) (bool, error)
 
-// RepositoryIterFunc stands for a function to return a
+// RepositoryIterFunc stands for a function returning a
 // borges.RepositoryIterator which iters in a certain order.
 type RepositoryIterFunc func(*Libraries, borges.Mode) (borges.RepositoryIterator, error)
 
 // Options hold configuration options for a Libraries.
 type Options struct {
+	// Timeout set a timeout for library operations. Some operations could
+	// potentially take long so timing out them will make an error be
+	// returned. A 0 value sets a default value of 60 seconds.
+	Timeout             time.Duration
 	RepositoryIterOrder RepositoryIterFunc
 }
 
@@ -34,6 +40,10 @@ type Libraries struct {
 
 var _ borges.Library = (*Libraries)(nil)
 
+const (
+	timeout = 60 * time.Second
+)
+
 // New create a new Libraries instance.
 func New(options *Options) *Libraries {
 	var opts *Options
@@ -45,6 +55,10 @@ func New(options *Options) *Libraries {
 
 	if opts.RepositoryIterOrder == nil {
 		opts.RepositoryIterOrder = RepositoryDefaultIter
+	}
+
+	if opts.Timeout == 0 {
+		opts.Timeout = timeout
 	}
 
 	return &Libraries{

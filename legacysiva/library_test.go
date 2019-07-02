@@ -1,9 +1,12 @@
 package legacysiva
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/src-d/go-borges"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 
@@ -116,4 +119,26 @@ func TestLibrary(t *testing.T) {
 	commitIter.Close()
 	req.Equal(368, count)
 	req.NoError(r.Close())
+}
+
+func TestTimeout(t *testing.T) {
+	var req = require.New(t)
+
+	lib := setupLibrary(t, "test", &LibraryOptions{
+		Bucket:  2,
+		Timeout: 1 * time.Nanosecond,
+	})
+
+	var err error
+	lib.cache, err = lru.New(1)
+	req.NoError(err)
+
+	_, err = lib.Locations()
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, err = lib.Repositories(borges.ReadOnlyMode)
+	req.EqualError(err, context.DeadlineExceeded.Error())
+
+	_, _, _, err = lib.Has("baz")
+	req.EqualError(err, context.DeadlineExceeded.Error())
 }
