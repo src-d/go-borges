@@ -1,4 +1,4 @@
-package oldsiva
+package legacysiva
 
 import (
 	"github.com/src-d/go-borges"
