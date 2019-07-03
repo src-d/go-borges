@@ -39,16 +39,20 @@ closing it. A double Close returns error.
 
 Transactions
 
-The storage supports transactions and has location lock on transaction when
-using the same library. Transactional writes are done directly to the siva file
-performing appends and a checkpoint file is created with the size of the file
-before starting the transaction. This file is used to recover broken siva files
-to the last known good state. Locations can be accessed in read only mode while
-the repository is performing a transaction and its content remain stable.
+The storage supports transactions and has location lock on write when using the
+same library. When the transaction starts a checkpoint file is created with the
+size of the file. This file is used to recover broken siva files to the last
+known good state. Writes are done to a temporary siva that holds only the added
+files. Locations can be accessed in read only mode while the repository is
+performing a transaction and its content remains stable.
 
-Committing a transaction finishes the writes to the siva file, closes it and
-deletes the checkpoint file. Rollback truncates the siva file to the last good
-size and deletes the checkpoint file.
+Committing a transaction finishes the writes to the temporary siva file,
+appends the data to the original siva and deletes the checkpoint file. Rollback
+truncates the siva file to the last good size and deletes the checkpoint file.
+
+In case files need to be deleted, like for example, when packing loose
+references, the deletion indexes are written directly to the original siva
+before appending the temporary one.
 
 Only one repository can be opened in read write mode in the same location when
 the library is transactional. When a second repository wants to be opened in RW
