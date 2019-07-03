@@ -1,5 +1,5 @@
 [![GoDoc](https://godoc.org/github.com/src-d/go-borges?status.svg)](https://godoc.org/github.com/src-d/go-borges)
-[![Build Status](https://travis-ci.org/src-d/go-borges.svg)](https://travis-ci.org/src-d/go-borges)
+[![Build Status](https://travis-ci.com/src-d/go-borges.svg)](https://travis-ci.com/src-d/go-borges)
 [![codecov.io](https://codecov.io/github/src-d/go-borges/coverage.svg)](https://codecov.io/github/src-d/go-borges)
 [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/go-borges)](https://goreportcard.com/report/github.com/src-d/go-borges)
 
