@@ -50,7 +50,7 @@ func TestRepositoryIterFuncs(t *testing.T) {
 	require.NoError(err)
 	require.ElementsMatch(expected, toSlice(t, iter))
 
-	iter, err = RepoIterSivasJumpLocations(libs, borges.ReadOnlyMode)
+	iter, err = RepoIterJumpSivaLocations(libs, borges.ReadOnlyMode)
 	require.NoError(err)
 	require.ElementsMatch(expected, toSlice(t, iter))
 

@@ -1,6 +1,7 @@
 package libraries
 
 import (
+	"context"
 	"time"
 
 	"github.com/src-d/go-borges"
@@ -91,7 +92,16 @@ func (l *Libraries) Init(borges.RepositoryID) (borges.Repository, error) {
 
 // Get implements the Library interface.
 func (l *Libraries) Get(id borges.RepositoryID, mode borges.Mode) (borges.Repository, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
 	for _, lib := range l.libs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		r, err := lib.Get(id, mode)
 		if err != nil {
 			if borges.ErrRepositoryNotExists.Is(err) {
@@ -114,7 +124,16 @@ func (l *Libraries) GetOrInit(borges.RepositoryID) (borges.Repository, error) {
 
 // Has implements the Library interface.
 func (l *Libraries) Has(id borges.RepositoryID) (bool, borges.LibraryID, borges.LocationID, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
 	for _, lib := range l.libs {
+		select {
+		case <-ctx.Done():
+			return false, "", "", ctx.Err()
+		default:
+		}
+
 		has, libID, locID, err := lib.Has(id)
 		if err != nil {
 			return false, "", "", err
@@ -135,7 +154,16 @@ func (l *Libraries) Repositories(mode borges.Mode) (borges.RepositoryIterator, e
 
 // Location implements the Library interface.
 func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
 	for _, lib := range l.libs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		loc, err := lib.Location(id)
 		if err != nil {
 			if borges.ErrLocationNotExists.Is(err) {
@@ -153,8 +181,17 @@ func (l *Libraries) Location(id borges.LocationID) (borges.Location, error) {
 
 // Locations implements the Library interface.
 func (l *Libraries) Locations() (borges.LocationIterator, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
 	var locations []borges.LocationIterator
 	for _, lib := range l.libs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		locs, err := lib.Locations()
 		if err != nil {
 			return nil, err
@@ -195,8 +232,17 @@ func (l *Libraries) FilteredLibraries(filter FilterLibraryFunc) (borges.LibraryI
 }
 
 func (l *Libraries) libraries(filter FilterLibraryFunc) ([]borges.Library, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), l.opts.Timeout)
+	defer cancel()
+
 	libs := make([]borges.Library, 0, len(l.libs))
 	for _, lib := range l.libs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		ok, err := filter(lib)
 		if err != nil {
 			return nil, err

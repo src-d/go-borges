@@ -10,6 +10,8 @@ import (
 )
 
 // MergeRepositoryIterators builds a new iterator from the given ones.
+// The merged iterator will keep the order of the given slice of iterators to
+// iterate them.
 func MergeRepositoryIterators(iters []borges.RepositoryIterator) borges.RepositoryIterator {
 	return &mergedRepoIter{iters: iters}
 }
@@ -291,10 +293,10 @@ func (i *jumpLibsRepoIter) Close() {
 	}
 }
 
-// RepoIterSivasJumpLocations returns a borges.RepositoryIterator with the same
+// RepoIterJumpSivaLocations returns a borges.RepositoryIterator with the same
 // properties as the one returned by RepoIterJumpLocations but using only those
 // libraries of type siva.Library.
-func RepoIterSivasJumpLocations(
+func RepoIterJumpSivaLocations(
 	libs *Libraries,
 	mode borges.Mode,
 ) (borges.RepositoryIterator, error) {
