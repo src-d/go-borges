@@ -84,6 +84,16 @@ func NewLibrary(
 		return nil, err
 	}
 
+	if metadata == nil {
+		metadata = NewLibraryMetadata("", -1)
+	}
+
+	if id == "" {
+		id = metadata.ID
+	} else {
+		metadata.SetID(id)
+	}
+
 	var ops *LibraryOptions
 	if options == nil {
 		ops = &LibraryOptions{}
@@ -126,6 +136,26 @@ func NewLibrary(
 		options:  ops,
 		metadata: metadata,
 	}, nil
+}
+
+// NewLibraryWithMetadata creates a new library but loads the library
+// identifier from metadata or generates a unique one (UUID).
+func NewLibraryWithMetadata(
+	fs billy.Filesystem,
+	options *LibraryOptions,
+) (*Library, error) {
+	lib, err := NewLibrary("", fs, options)
+	if err != nil {
+		return nil, err
+	}
+
+	if lib.metadata.ID == "" {
+		lib.metadata.GenerateID()
+		lib.SaveMetadata()
+	}
+
+	lib.id = borges.LibraryID(lib.metadata.ID)
+	return lib, nil
 }
 
 // ID implements borges.Library interface.
@@ -330,7 +360,7 @@ func (l *Library) Version() int {
 // SetVersion sets the current version to the given number.
 func (l *Library) SetVersion(n int) {
 	if l.metadata == nil {
-		l.metadata = NewLibraryMetadata(-1)
+		l.metadata = NewLibraryMetadata(string(l.id), -1)
 	}
 
 	l.metadata.SetVersion(n)

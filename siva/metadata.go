@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/util"
 )
@@ -16,14 +17,19 @@ const (
 
 // LibraryMetadata holds information about the library.
 type LibraryMetadata struct {
+	// ID is the library indentifyer. It is a generated UUID id no ID is
+	// provided.
+	ID string `json:"id,omiempty"`
+	// CurrentVersion holds the version used for reading.
 	CurrentVersion int `json:"version"`
 
 	dirty bool
 }
 
 // NewLibraryMetadata creates a new LibraryMetadata.
-func NewLibraryMetadata(Version int) *LibraryMetadata {
+func NewLibraryMetadata(id string, Version int) *LibraryMetadata {
 	return &LibraryMetadata{
+		ID:             id,
 		CurrentVersion: Version,
 	}
 }
@@ -44,6 +50,26 @@ func (m *LibraryMetadata) SetVersion(v int) {
 		m.dirty = true
 		m.CurrentVersion = v
 	}
+}
+
+// SetVersion changes the current version.
+func (m *LibraryMetadata) SetID(id string) {
+	if m != nil && id != m.ID {
+		m.dirty = true
+		m.ID = id
+	}
+}
+
+// GenerateID creates a new UUID and uses it as ID.
+func (m *LibraryMetadata) GenerateID() error {
+	uuid, err := uuid.NewUUID()
+	if err != nil {
+		return err
+	}
+
+	m.dirty = true
+	m.ID = uuid.String()
+	return nil
 }
 
 // Save writes metadata to the library yaml file.

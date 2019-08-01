@@ -2,7 +2,6 @@ package siva
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/src-d/go-borges"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-billy.v4/util"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
@@ -183,14 +183,15 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	require.NoError(err)
 
 	_, err = fs.Stat(LibraryMetadataFile)
-	require.True(os.IsNotExist(err), "library metadata file should not exist")
+	require.NoError(err, "library metadata file should exist")
 
 	// set version in library metadata
-	lib, err = NewLibrary("test", fs, &LibraryOptions{})
+	lib, err = NewLibrary("", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
 	require.Equal(-1, version)
+	require.Equal(borges.LibraryID("test"), lib.ID())
 
 	lib.SetVersion(1)
 
@@ -200,23 +201,25 @@ func TestMetadataWriteLibrary(t *testing.T) {
 	_, err = fs.Stat(LibraryMetadataFile)
 	require.NoError(err, "library metadata file should exist")
 
-	// modify version in library metadata
-	lib, err = NewLibrary("test", fs, &LibraryOptions{})
+	// modify version and id in library metadata
+	lib, err = NewLibrary("overwrite", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
 	require.Equal(1, version)
+	require.Equal(borges.LibraryID("overwrite"), lib.ID())
 
 	lib.SetVersion(10)
 	err = lib.SaveMetadata()
 	require.NoError(err)
 
 	// check modified version
-	lib, err = NewLibrary("test", fs, &LibraryOptions{})
+	lib, err = NewLibrary("", fs, &LibraryOptions{})
 	require.NoError(err)
 
 	version = lib.Version()
 	require.Equal(10, version)
+	require.Equal(borges.LibraryID("overwrite"), lib.ID())
 }
 
 func TestMetadataWriteLocation(t *testing.T) {
@@ -393,4 +396,40 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 		})
 	}
 
+}
+
+func TestMetadataLibraryID(t *testing.T) {
+	require := require.New(t)
+	fs := memfs.New()
+
+	lib, err := NewLibrary("", fs, nil)
+	require.NoError(err)
+
+	files, err := fs.ReadDir("")
+	require.NoError(err)
+	require.Len(files, 0)
+
+	err = lib.SaveMetadata()
+	require.NoError(err)
+
+	files, err = fs.ReadDir("")
+	require.NoError(err)
+	require.Len(files, 0)
+
+	libM, err := NewLibraryWithMetadata(fs, nil)
+	require.NoError(err)
+
+	id := string(libM.ID())
+	require.NotEmpty(id)
+
+	err = lib.SaveMetadata()
+	require.NoError(err)
+
+	files, err = fs.ReadDir("")
+	require.NoError(err)
+	require.Len(files, 1)
+
+	libM, err = NewLibraryWithMetadata(fs, nil)
+	require.NoError(err)
+	require.Equal(id, string(libM.ID()))
 }
