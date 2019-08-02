@@ -11,6 +11,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
+	github.com/sanity-io/litter v1.1.0
 	github.com/stretchr/testify v1.3.0
 	github.com/xanzy/ssh-agent v0.2.1 // indirect
 	golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5 // indirect

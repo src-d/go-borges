@@ -67,8 +67,7 @@ func (m *LibraryMetadata) GenerateID() error {
 		return err
 	}
 
-	m.dirty = true
-	m.ID = uuid.String()
+	m.SetID(uuid.String())
 	return nil
 }
 

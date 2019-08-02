@@ -402,7 +402,9 @@ func TestMetadataLibraryID(t *testing.T) {
 	require := require.New(t)
 	fs := memfs.New()
 
-	lib, err := NewLibrary("", fs, nil)
+	lib, err := NewLibrary("", fs, &LibraryOptions{
+		DontGenerateID: true,
+	})
 	require.NoError(err)
 
 	files, err := fs.ReadDir("")
@@ -416,7 +418,7 @@ func TestMetadataLibraryID(t *testing.T) {
 	require.NoError(err)
 	require.Len(files, 0)
 
-	libM, err := NewLibraryWithMetadata(fs, nil)
+	libM, err := NewLibrary("", fs, nil)
 	require.NoError(err)
 
 	id := string(libM.ID())
@@ -429,7 +431,7 @@ func TestMetadataLibraryID(t *testing.T) {
 	require.NoError(err)
 	require.Len(files, 1)
 
-	libM, err = NewLibraryWithMetadata(fs, nil)
+	libM, err = NewLibrary("", fs, nil)
 	require.NoError(err)
 	require.Equal(id, string(libM.ID()))
 }

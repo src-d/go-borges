@@ -61,6 +61,9 @@ type LibraryOptions struct {
 	// Performance enables performance options in read only git repositories
 	// (ExclusiveAccess and KeepDescriptors).
 	Performance bool
+	// DontGenerateID stops the library from generating a library ID if it's
+	// not provided or already in metadata.
+	DontGenerateID bool
 }
 
 var _ borges.Library = (*Library)(nil)
@@ -72,12 +75,21 @@ const (
 	registryCacheSize = 10000
 )
 
-// NewLibrary creates a new siva.Library.
+// NewLibrary creates a new siva.Library. If id is not provided the library ID
+// is read from the existing metadata or generated if not available and the
+// option DontGenerateID is not set.
 func NewLibrary(
 	id string,
 	fs billy.Filesystem,
 	options *LibraryOptions,
 ) (*Library, error) {
+	var ops *LibraryOptions
+	if options == nil {
+		ops = &LibraryOptions{}
+	} else {
+		ops = &(*options)
+	}
+
 	metadata, err := loadLibraryMetadata(fs)
 	if err != nil {
 		// TODO: skip metadata if corrupted?
@@ -89,16 +101,13 @@ func NewLibrary(
 	}
 
 	if id == "" {
+		if metadata.ID == "" && !ops.DontGenerateID {
+			metadata.GenerateID()
+		}
+
 		id = metadata.ID
 	} else {
 		metadata.SetID(id)
-	}
-
-	var ops *LibraryOptions
-	if options == nil {
-		ops = &LibraryOptions{}
-	} else {
-		ops = &(*options)
 	}
 
 	if ops.RegistryCache <= 0 {
@@ -128,33 +137,20 @@ func NewLibrary(
 		tmp = osfs.New(dir)
 	}
 
-	return &Library{
+	lib := &Library{
 		id:       borges.LibraryID(id),
 		fs:       fs,
 		tmp:      tmp,
 		locReg:   lr,
 		options:  ops,
 		metadata: metadata,
-	}, nil
-}
+	}
 
-// NewLibraryWithMetadata creates a new library but loads the library
-// identifier from metadata or generates a unique one (UUID).
-func NewLibraryWithMetadata(
-	fs billy.Filesystem,
-	options *LibraryOptions,
-) (*Library, error) {
-	lib, err := NewLibrary("", fs, options)
+	err = lib.SaveMetadata()
 	if err != nil {
 		return nil, err
 	}
 
-	if lib.metadata.ID == "" {
-		lib.metadata.GenerateID()
-		lib.SaveMetadata()
-	}
-
-	lib.id = borges.LibraryID(lib.metadata.ID)
 	return lib, nil
 }
 
