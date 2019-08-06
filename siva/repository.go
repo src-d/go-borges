@@ -13,7 +13,7 @@ import (
 )
 
 // ErrRepoAlreadyClosed is returned when a repository opened in RW mode was already closed.
-var ErrRepoAlreadyClosed = errors.NewKind("repository % already closed")
+var ErrRepoAlreadyClosed = errors.NewKind("repository %s already closed")
 
 // Repository is an implementation for siva files of borges.Repository
 // interface.
@@ -108,6 +108,8 @@ func (r *Repository) Commit() error {
 
 	err := r.saveVersion()
 	if err != nil {
+		// TODO: log the rollback error
+		_ = r.location.Rollback(r.mode)
 		return err
 	}
 
