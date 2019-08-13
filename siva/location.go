@@ -36,7 +36,7 @@ type Location struct {
 	lib        *Library
 	checkpoint *checkpoint
 	txer       *transactioner
-	metadata   *LocationMetadata
+	metadata   *locationMetadata
 
 	// references and config cache
 	refs    memory.ReferenceStorage
@@ -58,10 +58,14 @@ func newLocation(
 	path string,
 	create bool,
 ) (*Location, error) {
-	metadata, err := loadLocationMetadata(lib.fs, locationMetadataPath(path))
-	if err != nil {
-		// TODO: skip metadata if corrupted? log a warning?
-		return nil, err
+	var metadata *locationMetadata
+	if lib.metadata != nil {
+		var err error
+		metadata, err = loadOrCreateLocationMetadata(lib.fs, string(id))
+		if err != nil {
+			// TODO: skip metadata if corrupted? log a warning?
+			return nil, err
+		}
 	}
 
 	cp, err := newCheckpoint(lib.fs, path, create)
@@ -104,7 +108,11 @@ func (l *Location) checkAndUpdate() error {
 		return err
 	}
 
-	version := l.lib.Version()
+	version, err := l.lib.Version()
+	if err != nil {
+		return err
+	}
+
 	if l.fSize == stat.Size() && l.fTime == stat.ModTime() &&
 		l.version == version && l.checkpoint.Offset() == cp.Offset() {
 		return nil
@@ -175,9 +183,18 @@ func (l *Location) fs(mode borges.Mode, cp *checkpoint) (sivafs.SivaFS, error) {
 			return nil, borges.ErrLocationNotExists.New(string(l.id))
 		}
 
-		if l.metadata != nil {
-			version := l.lib.Version()
-			if o := l.metadata.Offset(version); o > 0 {
+		if l.lib.metadata != nil {
+			version, err := l.lib.Version()
+			if err != nil {
+				return nil, err
+			}
+
+			o, err := l.metadata.offset(version)
+			if err != nil {
+				return nil, err
+			}
+
+			if o > 0 {
 				offset = o
 			}
 		}
@@ -561,40 +578,40 @@ func (l *Location) repository(
 	return newRepository(id, sto, fs, mode, l.lib.options.Transactional, l)
 }
 
-func (l *Location) createMetadata() {
-	if l.metadata == nil {
-		l.metadata = NewLocationMetadata(make(map[int]Version))
-	}
-}
-
 // LastVersion returns the last defined version number in metadata or -1 if
 // there are not versions.
 func (l *Location) LastVersion() int {
-	return l.metadata.Last()
+	return l.metadata.last()
 }
 
-// Version returns an specific version. Second return value is false if the
-// version does not exist.
-func (l *Location) Version(v int) (Version, bool) {
-	return l.metadata.Version(v)
+// Version returns an specific version. If the given version does not exist
+// an error is returned.
+func (l *Location) Version(v int) (*Version, error) {
+	if l.lib.metadata != nil {
+		return l.metadata.version(v)
+	}
+
+	return nil, errLocVersionNotExists.New()
 }
 
 // SetVersion adds or changes a version to the location.
-func (l *Location) SetVersion(n int, v Version) {
-	l.createMetadata()
-	l.metadata.SetVersion(n, v)
+func (l *Location) SetVersion(n int, v *Version) {
+	if l.lib.metadata != nil {
+		l.metadata.setVersion(n, v)
+	}
 }
 
 // DeleteVersion removes the given version number.
 func (l *Location) DeleteVersion(n int) {
-	l.createMetadata()
-	l.metadata.DeleteVersion(n)
+	if l.lib.metadata != nil {
+		l.metadata.deleteVersion(n)
+	}
 }
 
 // SaveMetadata writes the location metadata to disk.
 func (l *Location) SaveMetadata() error {
-	if l.metadata != nil && l.metadata.Dirty() {
-		return l.metadata.Save(l.lib.fs, l.path)
+	if l.metadata != nil {
+		return l.metadata.save()
 	}
 
 	return nil
