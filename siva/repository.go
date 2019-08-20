@@ -161,6 +161,11 @@ func (r *Repository) saveVersion() error {
 		return nil
 	}
 
+	metadata := r.location.metadata
+	if metadata == nil {
+		return nil
+	}
+
 	offset, err := r.location.size()
 	if err != nil {
 		return err
@@ -169,16 +174,17 @@ func (r *Repository) saveVersion() error {
 	size := offset + 1
 
 	// work with metadata directly to get the offset of previous version
-	metadata := r.location.metadata
-	if metadata != nil {
-		metadata.DeleteVersion(r.createVersion)
-		previousOffset := metadata.Offset(r.createVersion)
-		if previousOffset > 0 {
-			size = offset - previousOffset
-		}
+	metadata.deleteVersion(r.createVersion)
+	previousOffset, err := metadata.offset(r.createVersion)
+	if err != nil {
+		return err
 	}
 
-	r.location.SetVersion(r.createVersion, Version{
+	if previousOffset > 0 {
+		size = offset - previousOffset
+	}
+
+	r.location.SetVersion(r.createVersion, &Version{
 		Offset: offset,
 		Size:   size,
 	})

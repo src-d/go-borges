@@ -17,25 +17,25 @@ import (
 func TestMetadataSiva(t *testing.T) {
 	require := require.New(t)
 
-	meta := LocationMetadata{
-		Versions: map[int]Version{
-			0: {
+	meta := &locationMetadata{
+		Versions: map[int]*Version{
+			0: &Version{
 				Offset: 16,
 				Size:   17,
 			},
-			1: {
+			1: &Version{
 				Offset: 32,
 				Size:   33,
 			},
-			10: {
+			10: &Version{
 				Offset: 42,
 				Size:   43,
 			},
-			20: {
+			20: &Version{
 				Offset: 52,
 				Size:   53,
 			},
-			2: {
+			2: &Version{
 				Offset: 62,
 				Size:   63,
 			},
@@ -47,7 +47,7 @@ func TestMetadataSiva(t *testing.T) {
 
 	m, err := parseLocationMetadata(data)
 	require.NoError(err)
-	require.EqualValues(meta, *m)
+	require.EqualValues(*meta, *m)
 }
 
 func TestMetadataLibrary(t *testing.T) {
@@ -65,7 +65,7 @@ versions:
     offset: 17421
 `
 
-		libMetadata = `---
+		metadata = `---
 version: `
 	)
 
@@ -131,27 +131,43 @@ version: `
 				"gitserver.com/b",
 				"gitserver.com/c",
 				"gitserver.com/d",
+				"gitserver.com/e",
 			},
 		},
 	}
 
+	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
+	path := "cf2e799463e1a00dbd1addd2003b0c7db31dbfe2" + locMetadataFileExt
+	err := util.WriteFile(fs, path, []byte(rootedVersions), 0666)
+	require.NoError(t, err)
+
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("version-%v", test.version), func(t *testing.T) {
 			require := require.New(t)
-			fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
-			if test.version != -1 {
-				libMd := libMetadata + strconv.Itoa(test.version)
-				err := util.WriteFile(fs, LibraryMetadataFile, []byte(libMd), 0666)
+			var lib *Library
+			if test.version == -1 {
+				// do not create metadata
+				var err error
+				lib, err = NewLibrary("test", fs, &LibraryOptions{
+					MetadataReadOnly: true,
+				})
+				require.NoError(err)
+			} else {
+				libMd := metadata + strconv.Itoa(test.version)
+				err := util.WriteFile(fs, libraryMetadataFile, []byte(libMd), 0666)
+				require.NoError(err)
+				defer func() {
+					require.NoError(fs.Remove(libraryMetadataFile))
+				}()
+
+				lib, err = NewLibrary("test", fs, &LibraryOptions{})
 				require.NoError(err)
 			}
 
-			path := locationMetadataPath("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2.siva")
-			err := util.WriteFile(fs, path, []byte(rootedVersions), 0666)
+			v, err := lib.Version()
 			require.NoError(err)
-
-			lib, err := NewLibrary("test", fs, &LibraryOptions{})
-			require.NoError(err)
+			require.Equal(test.version, v)
 
 			it, err := lib.Repositories(borges.ReadOnlyMode)
 			require.NoError(err)
@@ -168,61 +184,61 @@ version: `
 	}
 }
 
-func TestMetadataWriteLibrary(t *testing.T) {
+func TestMetadataLibraryWrite(t *testing.T) {
 	require := require.New(t)
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
-	// library does not have metadata
-	lib, err := NewLibrary("test", fs, &LibraryOptions{})
+	// library does not have metadata in MetadataReadOnly mode
+	lib, err := NewLibrary("test", fs, &LibraryOptions{
+		MetadataReadOnly: true,
+	})
 	require.NoError(err)
 
-	version := lib.Version()
+	version, err := lib.Version()
+	require.NoError(err)
 	require.Equal(-1, version)
 
-	err = lib.SaveMetadata()
+	// library creating metadata, since theres is no previous metadata
+	// a new metadata file will be created with id "test"
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	_, err = fs.Stat(LibraryMetadataFile)
+	_, err = fs.Stat(libraryMetadataFile)
 	require.NoError(err, "library metadata file should exist")
 
-	// set version in library metadata
-	lib, err = NewLibrary("", fs, &LibraryOptions{})
+	version, err = lib.Version()
 	require.NoError(err)
-
-	version = lib.Version()
-	require.Equal(-1, version)
+	require.Equal(0, version)
 	require.Equal(borges.LibraryID("test"), lib.ID())
 
-	lib.SetVersion(1)
+	require.NoError(lib.SetVersion(1))
 
-	err = lib.SaveMetadata()
-	require.NoError(err)
-
-	_, err = fs.Stat(LibraryMetadataFile)
+	_, err = fs.Stat(libraryMetadataFile)
 	require.NoError(err, "library metadata file should exist")
 
-	// modify version and id in library metadata
-	lib, err = NewLibrary("overwrite", fs, &LibraryOptions{})
+	// modify version and id in library metadata, since there is previous
+	// metadata that is loaded the id will be ignored
+	lib, err = NewLibrary("foo", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	version = lib.Version()
+	version, err = lib.Version()
+	require.NoError(err)
 	require.Equal(1, version)
-	require.Equal(borges.LibraryID("overwrite"), lib.ID())
+	require.Equal(borges.LibraryID("foo"), lib.ID())
 
-	lib.SetVersion(10)
-	err = lib.SaveMetadata()
-	require.NoError(err)
+	require.NoError(lib.SetVersion(10))
 
 	// check modified version
 	lib, err = NewLibrary("", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	version = lib.Version()
+	version, err = lib.Version()
+	require.NoError(err)
 	require.Equal(10, version)
-	require.Equal(borges.LibraryID("overwrite"), lib.ID())
+	require.Equal(borges.LibraryID("test"), lib.ID())
 }
 
-func TestMetadataWriteLocation(t *testing.T) {
+func TestMetadataLocationWrite(t *testing.T) {
 	require := require.New(t)
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
@@ -256,7 +272,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 	last := l.LastVersion()
 	require.Equal(-1, last)
 
-	l.SetVersion(0, Version{
+	l.SetVersion(0, &Version{
 		Offset: 3180,
 	})
 
@@ -278,7 +294,7 @@ func TestMetadataWriteLocation(t *testing.T) {
 
 	require.ElementsMatch([]string{"gitserver.com/a"}, repos)
 
-	l.SetVersion(1, Version{
+	l.SetVersion(1, &Version{
 		Offset: 6557,
 	})
 	l.DeleteVersion(0)
@@ -296,11 +312,12 @@ func TestMetadataWriteLocation(t *testing.T) {
 	l, ok = loc.(*Location)
 	require.True(ok, "location must be siva.Location")
 
-	_, ok = l.Version(0)
-	require.False(ok, "version 0 should not exist, it was deleted")
+	_, err = l.Version(0)
+	require.True(errLocVersionNotExists.Is(err),
+		"version 0 should not exist, it was deleted")
 
-	v, ok := l.Version(1)
-	require.True(ok, "version 1 should exist")
+	v, err := l.Version(1)
+	require.NoError(err, "version 1 should exist")
 	require.Equal(uint64(6557), v.Offset)
 
 	require.Equal(1, l.LastVersion())
@@ -326,6 +343,7 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
 
 	lib, err := NewLibrary("test", fs, &LibraryOptions{
+
 		Transactional: true,
 	})
 	require.NoError(err)
@@ -374,13 +392,13 @@ func TestMetadataVersionOnCommit(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("version-%v", test.version), func(t *testing.T) {
-			lib.SetVersion(test.version)
+			require.NoError(lib.SetVersion(test.version))
 			loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
 			require.NoError(err)
 
 			sivaLoc := loc.(*Location)
-			version, ok := sivaLoc.Version(test.version)
-			require.True(ok, "version must exist")
+			version, err := sivaLoc.Version(test.version)
+			require.NoError(err, "version must exist")
 
 			require.Equal(test.offset, version.Offset)
 			require.Equal(test.size, version.Size)
@@ -402,36 +420,34 @@ func TestMetadataLibraryID(t *testing.T) {
 	require := require.New(t)
 	fs := memfs.New()
 
+	// lib with no stored metadata in MetadataReadOnly mode
+	// doesn't generate ids
 	lib, err := NewLibrary("", fs, &LibraryOptions{
-		DontGenerateID: true,
+		MetadataReadOnly: true,
 	})
 	require.NoError(err)
 
+	require.Equal(string(lib.ID()), "")
 	files, err := fs.ReadDir("")
 	require.NoError(err)
 	require.Len(files, 0)
 
-	err = lib.SaveMetadata()
+	// lib creating metadata with the given id
+	lib, err = NewLibrary("test", fs, &LibraryOptions{})
 	require.NoError(err)
 
-	files, err = fs.ReadDir("")
-	require.NoError(err)
-	require.Len(files, 0)
+	require.Equal(string(lib.ID()), "test")
 
-	libM, err := NewLibrary("", fs, nil)
-	require.NoError(err)
+	// lib with empty id using stored metadata will get the id from the
+	// metadata
+	lib, err = NewLibrary("", fs, &LibraryOptions{})
 
-	id := string(libM.ID())
-	require.NotEmpty(id)
+	require.Equal(string(lib.ID()), "test")
 
-	err = lib.SaveMetadata()
-	require.NoError(err)
+	// lib will generate an id in case of an empty
+	// id is given if there's no previous metadata
+	fs = memfs.New()
+	lib, err = NewLibrary("", fs, &LibraryOptions{})
 
-	files, err = fs.ReadDir("")
-	require.NoError(err)
-	require.Len(files, 1)
-
-	libM, err = NewLibrary("", fs, nil)
-	require.NoError(err)
-	require.Equal(id, string(libM.ID()))
+	require.NotEmpty(string(lib.ID()))
 }

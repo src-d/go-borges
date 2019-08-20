@@ -3,115 +3,163 @@ package siva
 import (
 	"io/ioutil"
 	"os"
+	"time"
+
+	billy "gopkg.in/src-d/go-billy.v4"
+	errors "gopkg.in/src-d/go-errors.v1"
 
 	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
-	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/util"
 )
 
 const (
-	// LibraryMetadataFile is the name of the file that holds library metadata.
-	LibraryMetadataFile = "library.yaml"
+	libraryMetadataFile = "library.yaml"
 )
 
-// LibraryMetadata holds information about the library.
-type LibraryMetadata struct {
+type libMetadata struct {
 	// ID is the library indentifyer. It is a generated UUID id no ID is
 	// provided.
-	ID string `json:"id,omiempty"`
+	ID string `json:"id,omitempty"`
 	// CurrentVersion holds the version used for reading.
 	CurrentVersion int `json:"version"`
 
-	dirty bool
+	dirty   bool
+	fs      billy.Filesystem
+	size    int64
+	modTime time.Time
 }
 
-// NewLibraryMetadata creates a new LibraryMetadata.
-func NewLibraryMetadata(id string, Version int) *LibraryMetadata {
-	return &LibraryMetadata{
+// loadOrCreateLibraryMetadata loads the library metadata from disk. If the data
+// doesn't exist on disk it creates new data generating a new ID in case the
+// passed id is an empty string..
+func loadOrCreateLibraryMetadata(
+	id string,
+	fs billy.Filesystem,
+) (*libMetadata, error) {
+	m, err := loadLibraryMetadata(fs)
+	if err == nil || !os.IsNotExist(err) {
+		return m, err
+	}
+
+	if id == "" {
+		var err error
+		id, err = generateLibID()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return newLibraryMetadata(id, fs)
+}
+
+// newLibraryMetadata builds a new libMetadata. It persists the data on disk.
+func newLibraryMetadata(
+	id string,
+	fs billy.Filesystem,
+) (*libMetadata, error) {
+	m := &libMetadata{
 		ID:             id,
-		CurrentVersion: Version,
+		CurrentVersion: 0,
+		fs:             fs,
+		dirty:          true,
 	}
+
+	if err := m.save(); err != nil {
+		return nil, err
+	}
+
+	fi, err := fs.Stat(libraryMetadataFile)
+	if err != nil {
+		return nil, err
+	}
+
+	m.fs = fs
+	m.modTime = fi.ModTime()
+	m.size = fi.Size()
+
+	return m, nil
 }
 
-// Version returns the version stored in the library metadata file or -1
+// version returns the version stored in the library metadata file or -1
 // if it's not set.
-func (m *LibraryMetadata) Version() int {
-	if m == nil {
-		return -1
+func (m *libMetadata) version() (int, error) {
+	if m.dirty {
+		return m.CurrentVersion, nil
 	}
 
-	return m.CurrentVersion
+	fi, err := m.fs.Stat(libraryMetadataFile)
+	if err != nil {
+		return -1, err
+	}
+
+	if fi.ModTime() != m.modTime || fi.Size() != m.size {
+		metadata, err := loadLibraryMetadata(m.fs)
+		if err != nil {
+			return -1, err
+		}
+
+		m.ID = metadata.ID
+		m.CurrentVersion = metadata.CurrentVersion
+		m.modTime = fi.ModTime()
+		m.size = fi.Size()
+		m.dirty = false
+	}
+
+	return m.CurrentVersion, nil
 }
 
-// SetVersion changes the current version.
-func (m *LibraryMetadata) SetVersion(v int) {
+func (m *libMetadata) setVersion(v int) {
 	if v != m.CurrentVersion {
 		m.dirty = true
 		m.CurrentVersion = v
 	}
 }
 
-// SetVersion changes the current version.
-func (m *LibraryMetadata) SetID(id string) {
-	if m != nil && id != m.ID {
+// setID changes the current version.
+func (m *libMetadata) setID(id string) {
+	if id != m.ID {
 		m.dirty = true
 		m.ID = id
 	}
 }
 
-// GenerateID creates a new UUID and uses it as ID.
-func (m *LibraryMetadata) GenerateID() error {
+func generateLibID() (string, error) {
 	uuid, err := uuid.NewUUID()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	m.SetID(uuid.String())
-	return nil
+	return uuid.String(), nil
 }
 
-// Save writes metadata to the library yaml file.
-func (m *LibraryMetadata) Save(fs billy.Filesystem) error {
+func (m *libMetadata) save() error {
+	if !m.dirty {
+		return nil
+	}
+
 	data, err := yaml.Marshal(m)
 	if err != nil {
 		return err
 	}
 
-	tmp := LibraryMetadataFile + ".tmp"
-	defer fs.Remove(tmp)
+	tmp := libraryMetadataFile + ".tmp"
+	defer m.fs.Remove(tmp)
 
-	err = util.WriteFile(fs, tmp, data, 0666)
-	if err != nil {
+	if err = util.WriteFile(m.fs, tmp, data, 0666); err != nil {
 		return err
 	}
 
-	return fs.Rename(tmp, LibraryMetadataFile)
-}
-
-// Dirty returns true if the metadata was changed and it needs to be written.
-func (m *LibraryMetadata) Dirty() bool {
-	return m.dirty
-}
-
-// parseLibraryMetadata parses the yaml representation of library metadata.
-func parseLibraryMetadata(d []byte) (*LibraryMetadata, error) {
-	var m LibraryMetadata
-
-	err := yaml.Unmarshal(d, &m)
-	if err != nil {
-		return nil, err
+	if err = m.fs.Rename(tmp, libraryMetadataFile); err != nil {
+		return err
 	}
 
-	return &m, nil
+	m.dirty = false
+	return nil
 }
 
-// loadLibraryMetadata reads and parses a library metadata file.
-func loadLibraryMetadata(fs billy.Filesystem) (*LibraryMetadata, error) {
-	mf, err := fs.Open(LibraryMetadataFile)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+func loadLibraryMetadata(fs billy.Filesystem) (*libMetadata, error) {
+	mf, err := fs.Open(libraryMetadataFile)
 	if err != nil {
 		return nil, err
 	}
@@ -122,35 +170,66 @@ func loadLibraryMetadata(fs billy.Filesystem) (*LibraryMetadata, error) {
 		return nil, err
 	}
 
-	return parseLibraryMetadata(data)
+	m, err := parseLibraryMetadata(data)
+	if err != nil {
+		return nil, err
+	}
+
+	m.fs = fs
+
+	fi, err := fs.Stat(libraryMetadataFile)
+	if err != nil {
+		return nil, err
+	}
+
+	m.modTime = fi.ModTime()
+	m.size = fi.Size()
+
+	return m, nil
 }
 
-// Version describes a bookmark in the siva file.
+func parseLibraryMetadata(d []byte) (*libMetadata, error) {
+	var metadata libMetadata
+
+	err := yaml.Unmarshal(d, &metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+// Version represents a valid siva file point to read from.
 type Version struct {
-	// Offset is a position in the siva file.
 	Offset uint64 `json:"offset"`
-	// Size is block size of the Version.
-	Size uint64 `json:"size,omiempty"`
+	Size   uint64 `json:"size,omiempty"`
 }
 
-// LocationMetadata holds extra data associated with a siva file.
-type LocationMetadata struct {
-	// Versions holds a numbered list of bookmarks in the siva file.
-	Versions map[int]Version `json:"versions"`
+type locationMetadata struct {
+	Versions map[int]*Version `json:"versions"`
 
-	dirty bool
+	dirty   bool
+	fs      billy.Filesystem
+	path    string
+	size    int64
+	modTime time.Time
 }
 
-// NewLocationMetadata creates a new LocationMetadata.
-func NewLocationMetadata(versions map[int]Version) *LocationMetadata {
-	return &LocationMetadata{
-		Versions: versions,
+const locMetadataFileExt = ".yaml"
+
+func newLocationMetadata(
+	id string,
+	fs billy.Filesystem,
+) *locationMetadata {
+	return &locationMetadata{
+		Versions: make(map[int]*Version),
+		fs:       fs,
+		path:     id + locMetadataFileExt,
 	}
 }
 
-// parseLocationMetadata parses the yaml representation of location metadata.
-func parseLocationMetadata(d []byte) (*LocationMetadata, error) {
-	var m LocationMetadata
+func parseLocationMetadata(d []byte) (*locationMetadata, error) {
+	var m locationMetadata
 
 	err := yaml.Unmarshal(d, &m)
 	if err != nil {
@@ -160,15 +239,24 @@ func parseLocationMetadata(d []byte) (*LocationMetadata, error) {
 	return &m, nil
 }
 
-// loadLocationMetadata reads and parses a location metadata file.
+func loadOrCreateLocationMetadata(
+	fs billy.Filesystem,
+	id string,
+) (*locationMetadata, error) {
+	path := id + locMetadataFileExt
+	m, err := loadLocationMetadata(fs, path)
+	if os.IsNotExist(err) {
+		return newLocationMetadata(id, fs), nil
+	}
+
+	return m, err
+}
+
 func loadLocationMetadata(
 	fs billy.Filesystem,
 	path string,
-) (*LocationMetadata, error) {
+) (*locationMetadata, error) {
 	mf, err := fs.Open(path)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -179,20 +267,19 @@ func loadLocationMetadata(
 		return nil, err
 	}
 
-	return parseLocationMetadata(data)
-}
-
-// locationMetadataPath returns the path for a location metadata file.
-func locationMetadataPath(path string) string {
-	return path + ".yaml"
-}
-
-// Last returns the last Version or -1 if there are no Versions.
-func (m *LocationMetadata) Last() int {
-	if m == nil {
-		return -1
+	m, err := parseLocationMetadata(data)
+	if err != nil {
+		return nil, err
 	}
 
+	m.fs = fs
+	m.path = path
+
+	return m, nil
+}
+
+// last returns the last Version or -1 if there are no Versions.
+func (m *locationMetadata) last() int {
 	last := -1
 	for i := range m.Versions {
 		if i > last {
@@ -204,7 +291,7 @@ func (m *LocationMetadata) Last() int {
 }
 
 // closest searches for the last Version lesser or equal to the one provided.
-func (m *LocationMetadata) closest(v int) int {
+func (m *locationMetadata) closest(v int) int {
 	closest := -1
 	for i := range m.Versions {
 		if i <= v && i > closest {
@@ -215,51 +302,83 @@ func (m *LocationMetadata) closest(v int) int {
 	return closest
 }
 
-// Offset picks the closest Version from metadata and returns its offsets.
+// offset picks the closest Version from metadata and returns its offsets.
 // If there are not Versions defined returns offset 0 that means to use
 // the latest siva index when used with siva filesystem.
-func (m *LocationMetadata) Offset(c int) uint64 {
-	Version := m.Last()
+func (m *locationMetadata) offset(c int) (uint64, error) {
+	version := m.last()
 
-	if Version < 0 {
-		return 0
+	if version < 0 {
+		return 0, nil
 	}
 
-	if v, ok := m.Versions[c]; ok {
-		return v.Offset
+	b, err := m.version(c)
+	if err == nil {
+		return b.Offset, nil
+	}
+
+	if !errLocVersionNotExists.Is(err) {
+		return 0, err
 	}
 
 	if closest := m.closest(c); closest >= 0 {
-		Version = closest
+		version = closest
 	}
 
-	return m.Versions[Version].Offset
+	return m.Versions[version].Offset, nil
 }
 
-// Version returns information for a given version. Second return argument
-// is false if the version does not exist.
-func (m *LocationMetadata) Version(v int) (Version, bool) {
-	if m == nil {
-		return Version{}, false
+var errLocVersionNotExists = errors.NewKind("location version not exists")
+
+// version returns information for a given version. If the version does not
+// exist  an error is returned
+func (m *locationMetadata) version(v int) (*Version, error) {
+	if m.dirty {
+		Version, ok := m.Versions[v]
+		if !ok {
+			return nil, errLocVersionNotExists.New()
+		}
+
+		return Version, nil
 	}
 
-	d, ok := m.Versions[v]
-	return d, ok
+	fi, err := m.fs.Stat(m.path)
+	if err != nil {
+		return nil, err
+	}
+
+	if fi.ModTime() != m.modTime || fi.Size() != m.size {
+		metadata, err := loadLocationMetadata(m.fs, m.path)
+		if err != nil {
+			return nil, err
+		}
+
+		m.Versions = metadata.Versions
+		m.modTime = fi.ModTime()
+		m.size = fi.Size()
+		m.dirty = false
+	}
+
+	Version, ok := m.Versions[v]
+	if !ok {
+		return nil, errLocVersionNotExists.New()
+	}
+
+	return Version, nil
 }
 
-// SetVersion changes or adds the information for a version.
-func (m *LocationMetadata) SetVersion(n int, v Version) {
-	Version, ok := m.Versions[n]
-	if ok && Version == v {
+func (m *locationMetadata) setVersion(n int, b *Version) {
+	current, ok := m.Versions[n]
+	if ok && (current.Offset == b.Offset && current.Size == b.Size) {
 		return
 	}
 
-	m.Versions[n] = v
+	m.Versions[n] = b
 	m.dirty = true
 }
 
-// DeleteVersion deletes a given version.
-func (m *LocationMetadata) DeleteVersion(n int) {
+// deleteVersion deletes a given version.
+func (m *locationMetadata) deleteVersion(n int) {
 	_, ok := m.Versions[n]
 	if !ok {
 		return
@@ -269,26 +388,23 @@ func (m *LocationMetadata) DeleteVersion(n int) {
 	m.dirty = true
 }
 
-// Dirty returns true if metadata was changed and needs saving.
-func (m *LocationMetadata) Dirty() bool {
-	return m.dirty
-}
+func (m *locationMetadata) save() error {
+	if !m.dirty {
+		return nil
+	}
 
-// Save writes metadata to the yaml file for the give siva path.
-func (m *LocationMetadata) Save(fs billy.Filesystem, path string) error {
 	data, err := yaml.Marshal(m)
 	if err != nil {
 		return err
 	}
 
-	path = locationMetadataPath(path)
-	tmp := path + ".tmp"
-	defer fs.Remove(tmp)
+	tmp := m.path + ".tmp"
+	defer m.fs.Remove(tmp)
 
-	err = util.WriteFile(fs, tmp, data, 0666)
+	err = util.WriteFile(m.fs, tmp, data, 0666)
 	if err != nil {
 		return err
 	}
 
-	return fs.Rename(tmp, path)
+	return m.fs.Rename(tmp, m.path)
 }

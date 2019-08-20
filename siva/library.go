@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ type Library struct {
 	locReg   *locationRegistry
 	locMu    sync.Mutex
 	options  *LibraryOptions
-	metadata *LibraryMetadata
+	metadata *libMetadata
 }
 
 // LibraryOptions hold configuration options for the library.
@@ -61,23 +62,20 @@ type LibraryOptions struct {
 	// Performance enables performance options in read only git repositories
 	// (ExclusiveAccess and KeepDescriptors).
 	Performance bool
-	// DontGenerateID stops the library from generating a library ID if it's
-	// not provided or already in metadata.
-	DontGenerateID bool
+	// MetadataReadOnly doesn't create or modify metadata for the library.
+	MetadataReadOnly bool
 }
 
 var _ borges.Library = (*Library)(nil)
 
 const (
-	timeout = 20 * time.Second
-	// txTimeout is the default transaction TransactionTimeout.
+	timeout           = 20 * time.Second
 	txTimeout         = 60 * time.Second
 	registryCacheSize = 10000
 )
 
-// NewLibrary creates a new siva.Library. If id is not provided the library ID
-// is read from the existing metadata or generated if not available and the
-// option DontGenerateID is not set.
+// NewLibrary creates a new siva.Library. When is not in MetadataReadOnly it
+// will generate an id if not provided the first time the metadata is created.
 func NewLibrary(
 	id string,
 	fs billy.Filesystem,
@@ -90,24 +88,23 @@ func NewLibrary(
 		ops = &(*options)
 	}
 
-	metadata, err := loadLibraryMetadata(fs)
-	if err != nil {
-		// TODO: skip metadata if corrupted?
+	var (
+		metadata *libMetadata
+		err      error
+	)
+
+	if ops.MetadataReadOnly {
+		metadata, err = loadLibraryMetadata(fs)
+	} else {
+		metadata, err = loadOrCreateLibraryMetadata(id, fs)
+	}
+
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	if metadata == nil {
-		metadata = NewLibraryMetadata("", -1)
-	}
-
-	if id == "" {
-		if metadata.ID == "" && !ops.DontGenerateID {
-			metadata.GenerateID()
-		}
-
+	if metadata != nil && id == "" {
 		id = metadata.ID
-	} else {
-		metadata.SetID(id)
 	}
 
 	if ops.RegistryCache <= 0 {
@@ -137,21 +134,14 @@ func NewLibrary(
 		tmp = osfs.New(dir)
 	}
 
-	lib := &Library{
+	return &Library{
 		id:       borges.LibraryID(id),
 		fs:       fs,
 		tmp:      tmp,
 		locReg:   lr,
 		options:  ops,
 		metadata: metadata,
-	}
-
-	err = lib.SaveMetadata()
-	if err != nil {
-		return nil, err
-	}
-
-	return lib, nil
+	}, nil
 }
 
 // ID implements borges.Library interface.
@@ -349,24 +339,20 @@ func (l *Library) locations(ctx context.Context) ([]borges.Location, error) {
 }
 
 // Version returns version stored in metadata or -1 if not defined.
-func (l *Library) Version() int {
-	return l.metadata.Version()
+func (l *Library) Version() (int, error) {
+	if l.metadata != nil {
+		return l.metadata.version()
+	}
+
+	return -1, nil
 }
 
 // SetVersion sets the current version to the given number.
-func (l *Library) SetVersion(n int) {
+func (l *Library) SetVersion(n int) error {
 	if l.metadata == nil {
-		l.metadata = NewLibraryMetadata(string(l.id), -1)
+		return nil
 	}
 
-	l.metadata.SetVersion(n)
-}
-
-// SaveMetadata writes the metadata to the library yaml file.
-func (l *Library) SaveMetadata() error {
-	if l.metadata != nil && l.metadata.dirty {
-		return l.metadata.Save(l.fs)
-	}
-
-	return nil
+	l.metadata.setVersion(n)
+	return l.metadata.save()
 }
