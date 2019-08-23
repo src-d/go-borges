@@ -208,7 +208,7 @@ func TestMetadataLibraryWrite(t *testing.T) {
 
 	version, err = lib.Version()
 	require.NoError(err)
-	require.Equal(0, version)
+	require.Equal(-1, version)
 	require.Equal(borges.LibraryID("test"), lib.ID())
 
 	require.NoError(lib.SetVersion(1))

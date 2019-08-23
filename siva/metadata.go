@@ -60,7 +60,7 @@ func newLibraryMetadata(
 ) (*libMetadata, error) {
 	m := &libMetadata{
 		ID:             id,
-		CurrentVersion: 0,
+		CurrentVersion: -1,
 		fs:             fs,
 		dirty:          true,
 	}
