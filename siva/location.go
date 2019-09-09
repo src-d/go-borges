@@ -61,7 +61,8 @@ func newLocation(
 	var metadata *locationMetadata
 	if lib.metadata != nil {
 		var err error
-		metadata, err = loadOrCreateLocationMetadata(lib.fs, string(id))
+		mPath := buildSivaMetadataPath(id, lib.options.Bucket)
+		metadata, err = loadOrCreateLocationMetadata(lib.fs, mPath)
 		if err != nil {
 			// TODO: skip metadata if corrupted? log a warning?
 			return nil, err

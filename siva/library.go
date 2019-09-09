@@ -2,7 +2,6 @@ package siva
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -271,9 +270,17 @@ func (l *Library) location(id borges.LocationID, create bool) (borges.Location, 
 }
 
 func buildSivaPath(id borges.LocationID, bucket int) string {
-	siva := fmt.Sprintf("%s.siva", id)
+	return buildPath(id, bucket, ".siva")
+}
+
+func buildSivaMetadataPath(id borges.LocationID, bucket int) string {
+	return buildPath(id, bucket, locMetadataFileExt)
+}
+
+func buildPath(id borges.LocationID, bucket int, suffix string) string {
+	name := string(id) + suffix
 	if bucket == 0 {
-		return siva
+		return name
 	}
 
 	r := []rune(id)
@@ -284,7 +291,7 @@ func buildSivaPath(id borges.LocationID, bucket int) string {
 		bucketDir = string(r[:bucket])
 	}
 
-	return filepath.Join(bucketDir, siva)
+	return filepath.Join(bucketDir, name)
 }
 
 // Locations implements borges.Library interface.
