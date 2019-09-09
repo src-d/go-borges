@@ -3,6 +3,7 @@ package siva
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -239,10 +240,21 @@ func TestMetadataLibraryWrite(t *testing.T) {
 }
 
 func TestMetadataLocationWrite(t *testing.T) {
-	require := require.New(t)
-	fs, _ := setupFS(t, "../_testdata/rooted", true, 0)
+	for _, bucket := range []int{0, 2} {
+		t.Run(fmt.Sprintf("bucket %v", bucket), func(s *testing.T) {
+			testMetadataLocationWrite(s, bucket)
+		})
+	}
+}
 
-	lib, err := NewLibrary("test", fs, &LibraryOptions{})
+func testMetadataLocationWrite(t *testing.T, bucket int) {
+	t.Helper()
+	require := require.New(t)
+	fs, _ := setupFS(t, "../_testdata/rooted", true, bucket)
+
+	lib, err := NewLibrary("test", fs, &LibraryOptions{
+		Bucket: bucket,
+	})
 	require.NoError(err)
 
 	loc, err := lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
@@ -303,7 +315,9 @@ func TestMetadataLocationWrite(t *testing.T) {
 
 	// Reopen library and check versions
 
-	lib, err = NewLibrary("test", fs, &LibraryOptions{})
+	lib, err = NewLibrary("test", fs, &LibraryOptions{
+		Bucket: bucket,
+	})
 	require.NoError(err)
 
 	loc, err = lib.Location("cf2e799463e1a00dbd1addd2003b0c7db31dbfe2")
@@ -336,6 +350,12 @@ func TestMetadataLocationWrite(t *testing.T) {
 		"gitserver.com/a",
 		"gitserver.com/b",
 	}, repos)
+
+	// Check that the metadata file is in the correct place
+
+	metadata := strings.TrimSuffix(l.path, ".siva") + ".yaml"
+	_, err = fs.Stat(metadata)
+	require.NoError(err, "metadata does not exist in the correct path")
 }
 
 func TestMetadataVersionOnCommit(t *testing.T) {

@@ -218,13 +218,13 @@ type locationMetadata struct {
 const locMetadataFileExt = ".yaml"
 
 func newLocationMetadata(
-	id string,
 	fs billy.Filesystem,
+	path string,
 ) *locationMetadata {
 	return &locationMetadata{
 		Versions: make(map[int]*Version),
 		fs:       fs,
-		path:     id + locMetadataFileExt,
+		path:     path,
 	}
 }
 
@@ -241,12 +241,11 @@ func parseLocationMetadata(d []byte) (*locationMetadata, error) {
 
 func loadOrCreateLocationMetadata(
 	fs billy.Filesystem,
-	id string,
+	path string,
 ) (*locationMetadata, error) {
-	path := id + locMetadataFileExt
 	m, err := loadLocationMetadata(fs, path)
 	if os.IsNotExist(err) {
-		return newLocationMetadata(id, fs), nil
+		return newLocationMetadata(fs, path), nil
 	}
 
 	return m, err
