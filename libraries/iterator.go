@@ -2,6 +2,7 @@ package libraries
 
 import (
 	"io"
+	"sync"
 
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/plain"
@@ -17,6 +18,7 @@ func MergeRepositoryIterators(iters []borges.RepositoryIterator) borges.Reposito
 }
 
 type mergedRepoIter struct {
+	mu    sync.Mutex
 	iters []borges.RepositoryIterator
 }
 
@@ -24,6 +26,9 @@ var _ borges.RepositoryIterator = (*mergedRepoIter)(nil)
 
 // Next implements the borges.RepositoryIterator interface.
 func (i *mergedRepoIter) Next() (borges.Repository, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for {
 		if len(i.iters) == 0 {
 			return nil, io.EOF
@@ -55,6 +60,9 @@ func (i *mergedRepoIter) ForEach(cb func(borges.Repository) error) error {
 
 // Close implements the borges.RepositoryIterator interface.
 func (i *mergedRepoIter) Close() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for _, iter := range i.iters {
 		iter.Close()
 	}
@@ -66,6 +74,7 @@ func MergeLocationIterators(iters []borges.LocationIterator) borges.LocationIter
 }
 
 type mergedLocationIter struct {
+	mu    sync.Mutex
 	iters []borges.LocationIterator
 }
 
@@ -73,6 +82,9 @@ var _ borges.LocationIterator = (*mergedLocationIter)(nil)
 
 // Next implements the borges.LocationIterator interface.
 func (i *mergedLocationIter) Next() (borges.Location, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for {
 		if len(i.iters) == 0 {
 			return nil, io.EOF
@@ -104,6 +116,9 @@ func (i *mergedLocationIter) ForEach(cb func(borges.Location) error) error {
 
 // Close implements the borges.LocationIterator interface.
 func (i *mergedLocationIter) Close() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for _, iter := range i.iters {
 		iter.Close()
 	}
@@ -115,6 +130,7 @@ func MergeLibraryIterators(iters []borges.LibraryIterator) borges.LibraryIterato
 }
 
 type mergedLibIter struct {
+	mu    sync.Mutex
 	iters []borges.LibraryIterator
 }
 
@@ -122,6 +138,9 @@ var _ borges.LibraryIterator = (*mergedLibIter)(nil)
 
 // Next implements the borges.LibraryIterator interface.
 func (i *mergedLibIter) Next() (borges.Library, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for {
 		if len(i.iters) == 0 {
 			return nil, io.EOF
@@ -153,6 +172,9 @@ func (i *mergedLibIter) ForEach(cb func(borges.Library) error) error {
 
 // Close implements the borges.LibraryIterator interface.
 func (i *mergedLibIter) Close() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for _, iter := range i.iters {
 		iter.Close()
 	}
