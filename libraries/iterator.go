@@ -24,21 +24,22 @@ var _ borges.RepositoryIterator = (*mergedRepoIter)(nil)
 
 // Next implements the borges.RepositoryIterator interface.
 func (i *mergedRepoIter) Next() (borges.Repository, error) {
-	if len(i.iters) == 0 {
-		return nil, io.EOF
-	}
+	for {
+		if len(i.iters) == 0 {
+			return nil, io.EOF
+		}
 
-	repo, err := i.iters[0].Next()
-	if err != nil {
+		repo, err := i.iters[0].Next()
+		if err == nil {
+			return repo, nil
+		}
+
 		if err != io.EOF {
 			return nil, err
 		}
 
 		i.iters = i.iters[1:]
-		return i.Next()
 	}
-
-	return repo, nil
 }
 
 // ForEach implements the borges.RepositoryIterator interface.
@@ -72,21 +73,22 @@ var _ borges.LocationIterator = (*mergedLocationIter)(nil)
 
 // Next implements the borges.LocationIterator interface.
 func (i *mergedLocationIter) Next() (borges.Location, error) {
-	if len(i.iters) == 0 {
-		return nil, io.EOF
-	}
+	for {
+		if len(i.iters) == 0 {
+			return nil, io.EOF
+		}
 
-	loc, err := i.iters[0].Next()
-	if err != nil {
+		loc, err := i.iters[0].Next()
+		if err == nil {
+			return loc, nil
+		}
+
 		if err != io.EOF {
 			return nil, err
 		}
 
 		i.iters = i.iters[1:]
-		return i.Next()
 	}
-
-	return loc, nil
 }
 
 // ForEach implements the borges.LocationIterator interface.
@@ -120,21 +122,22 @@ var _ borges.LibraryIterator = (*mergedLibIter)(nil)
 
 // Next implements the borges.LibraryIterator interface.
 func (i *mergedLibIter) Next() (borges.Library, error) {
-	if len(i.iters) == 0 {
-		return nil, io.EOF
-	}
+	for {
+		if len(i.iters) == 0 {
+			return nil, io.EOF
+		}
 
-	lib, err := i.iters[0].Next()
-	if err != nil {
+		lib, err := i.iters[0].Next()
+		if err == nil {
+			return lib, nil
+		}
+
 		if err != io.EOF {
 			return nil, err
 		}
 
 		i.iters = i.iters[1:]
-		return i.Next()
 	}
-
-	return lib, nil
 }
 
 // ForEach implements the borges.LibraryIterator interface.
